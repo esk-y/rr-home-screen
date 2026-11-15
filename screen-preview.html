@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rob &amp; Rhonda's Home Screen</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&display=swap">
+<!--
+  Rob & Rhonda's home screen (Phase 2) - the page the tablet shows all day.
+  Open it as:  screen.html?k=TABLET_KEY            (uses the API address below)
+          or:  screen.html?k=TABLET_KEY&api=URL    (to point at a different deployment)
+  It asks the Apps Script web app for the schedule, messages and calls every few seconds.
+-->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0f13; }
+  .fit { position: fixed; inset: 0; display: grid; place-items: center; }
+  .screen {
+    /* Low-vision rules: nothing below 26px, nothing in regular weight, no pale gray text */
+    --s-bg: #eef2f1; --s-panel: #ffffff; --s-ink: #10181e; --s-muted: #2f3b44; --s-line: #c9d2cf; --s-done: #e7ecea;
+    --s-call: #1d7446; --s-call-soft: #e3f2e9; --s-end: #b3261e; --s-next: #fff4d6; --s-next-ink: #7a4b00;
+    --rob: #1d5aa6; --rhonda: #94306a; --both: #2c6a3a;
+    --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", Verdana, "Segoe UI", sans-serif;
+    position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0;
+    background: var(--s-bg); color: var(--s-ink); font-family: var(--font);
+    display: grid; grid-template-columns: 400px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
+    transition: background .6s, color .6s; user-select: none; -webkit-user-select: none;
+  }
+  .screen.night {
+    --s-bg: #0a0f13; --s-panel: #121a20; --s-ink: #eef3f6; --s-muted: #c3cdd4; --s-line: #33404a; --s-done: #1b252c;
+    --s-call: #3f9a67; --s-call-soft: #13241b; --s-next: #2a2210; --s-next-ink: #e2b866;
+    --rob: #7fa9e0; --rhonda: #d68bb7; --both: #86c592;
+  }
+  .col { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+  .card { background: var(--s-panel); border-radius: 18px; padding: 20px 22px; }
+  .clock { display: grid; gap: 2px; padding: 6px 4px 0; }
+  .time { font-size: 116px; font-weight: 800; line-height: 1; letter-spacing: -3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .time small { font-size: 38px; letter-spacing: 0; margin-left: 8px; font-weight: 800; }
+  .day { font-size: 58px; font-weight: 800; line-height: 1.05; margin-top: 16px; }
+  .part { font-size: 46px; font-weight: 700; line-height: 1.1; }
+  .date { font-size: 34px; font-weight: 700; margin-top: 12px; }
+  .offline { font-size: 26px; font-weight: 700; color: var(--s-end); margin-top: 8px; }
+  .label { font-size: 28px; font-weight: 800; color: var(--s-ink); }
+  .calls { display: grid; gap: 10px; margin-top: auto; }
+  .callbtn { display: flex; align-items: center; gap: 16px; padding: 8px 18px 8px 10px; border-radius: 18px; cursor: pointer;
+    background: var(--s-call-soft); border: 3px solid var(--s-call); color: var(--s-ink); font: 800 34px var(--font); text-align: left; }
+  .callbtn .cam { margin-left: auto; width: 42px; height: 42px; color: var(--s-call); }
+  .avatar { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 30px; color: #fff; }
+
+  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; padding: 22px 26px; }
+  .today h2 { margin: 0; font-size: 40px; font-weight: 800; }
+  .events { flex: 1; min-height: 0; overflow: hidden; display: grid; align-content: start; gap: 4px; }
+  .allday { font-size: 30px; font-weight: 700; }
+  .who { font-weight: 800; }
+  .who.rob { color: var(--rob); } .who.rhonda { color: var(--rhonda); } .who.both { color: var(--both); }
+
+  /* The one thing to look at: what's next */
+  .nextcard { background: var(--s-next); border: 3px solid var(--s-next-ink); border-radius: 18px; padding: 12px 22px 14px; display: grid; gap: 2px; margin-bottom: 6px; }
+  .nextcard .nk { font-size: 30px; font-weight: 800; color: var(--s-next-ink); }
+  .nextcard .nt { font-size: 46px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .nextcard .nw { font-size: 44px; font-weight: 800; line-height: 1.15; }
+  .nextcard .nn { font-size: 30px; font-weight: 700; line-height: 1.25; margin-top: 2px; }
+
+  /* Other items: time and title only; details show when an item becomes Next */
+  .row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 16px; align-items: baseline; padding: 4px 4px; }
+  .row .t { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row .what { font-size: 34px; font-weight: 700; line-height: 1.2; }
+  .row.done { background: var(--s-done); border-radius: 14px; padding: 8px 14px; }
+  .row.done .t, .row.done .what { font-size: 28px; }
+  .row.done .tag { font-weight: 800; color: var(--s-call); }
+  .sub { font-size: 28px; font-weight: 800; }
+  .quiet { font-size: 34px; font-weight: 700; padding: 6px 4px; }
+  .more { font-size: 28px; font-weight: 700; padding: 0 4px; }
+  .tomorrow { padding-top: 12px; border-top: 3px solid var(--s-line); display: grid; gap: 2px; }
+  .tomorrow .row .t { font-size: 30px; }
+  .tomorrow .row .what { font-size: 30px; }
+  .tomorrow .quiet { font-size: 30px; }
+
+  /* Messages: a card pops over the calendar, then shrinks to a strip until answered */
+  .mstrip { display: flex; align-items: center; gap: 16px; width: 100%; padding: 10px 18px 10px 10px; border-radius: 16px; cursor: pointer; text-align: left;
+    background: var(--s-call-soft); border: 3px solid var(--s-call); color: var(--s-ink); font: 800 32px var(--font); }
+  .mstrip .avatar { width: 52px; height: 52px; font-size: 24px; }
+  .mstrip .go { margin-left: auto; font-size: 28px; color: var(--s-call); white-space: nowrap; }
+  .mcard { width: 860px; max-width: 860px; }
+  .mcard .from { display: flex; align-items: center; gap: 16px; font-size: 32px; font-weight: 800; }
+  .mcard .body { font-size: 46px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+  .mcard .replies { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; margin-top: 6px; }
+  .reply { font: 800 34px var(--font); padding: 20px 16px; border-radius: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 12px;
+    border: 0; color: #fff; background: var(--s-call); }
+  .reply.callme { background: var(--rob); }
+  .reply svg { width: 36px; height: 36px; }
+  .mcard .later { font-size: 28px; font-weight: 700; color: var(--s-muted); }
+  .mcard .sentmsg { font-size: 44px; font-weight: 700; color: var(--s-call); }
+
+  .overlay { position: absolute; inset: 0; background: var(--s-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
+  .overlay .big { width: 200px; height: 200px; font-size: 92px; }
+  .overlay h3 { margin: 0; font-size: 62px; }
+  .overlay p { margin: 0; font-size: 32px; color: var(--s-muted); }
+  .ring { animation: ring 1.2s ease-in-out infinite; }
+  @keyframes ring { 50% { transform: scale(1.06); } }
+  .video { position: absolute; inset: 0; background: radial-gradient(circle at 50% 40%, #3a3f4c, #15181d 70%); display: grid; place-items: center; color: #e4e8ee; }
+  .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video .face { display: grid; gap: 14px; justify-items: center; font-size: 26px; opacity: .85; }
+  .callbar { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 30px; display: flex; align-items: center; gap: 20px;
+    background: rgba(0,0,0,.55); color: #fff; font-size: 30px; font-weight: 600; }
+  .hangup { margin-left: auto; font: 800 34px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 20px; padding: 20px 46px; cursor: pointer; display: flex; gap: 12px; align-items: center; }
+  .hangup svg { width: 34px; height: 34px; }
+  .cancel { font: 700 30px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 18px; padding: 16px 44px; cursor: pointer; margin-top: 10px; }
+  .remind { position: absolute; inset: 0; background: rgba(10, 15, 19, .55); display: grid; place-items: center; }
+  .remind .box { background: var(--s-panel); color: var(--s-ink); border-radius: 28px; padding: 44px 60px; max-width: 920px;
+    display: grid; gap: 22px; justify-items: center; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  .remind .kicker { font-size: 26px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--s-next-ink); }
+  .remind .rmsg { font-size: 54px; font-weight: 700; line-height: 1.2; }
+  .remind .rsub { font-size: 34px; color: var(--s-muted); line-height: 1.3; }
+  .remind .ok { font: 800 40px var(--font); background: var(--s-call); color: #fff; border: 0; border-radius: 20px; padding: 18px 96px; cursor: pointer; margin-top: 8px; }
+  .setup { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; padding: 60px; text-align: center; background: var(--s-bg); }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { .ring { animation: none; } .screen { transition: none; } }
+</style>
+</head>
+<body>
+<div class="fit" id="fit">
+  <div class="screen" id="screen">
+    <div class="col">
+      <div class="clock">
+        <div class="time" id="time"></div>
+        <div class="day" id="day"></div>
+        <div class="part" id="part"></div>
+        <div class="date" id="date"></div>
+        <div class="offline" id="offline" hidden>Reconnecting… showing the last saved schedule.</div>
+      </div>
+      <div class="calls">
+        <div class="label">Video call</div>
+        <div id="contacts" style="display:grid;gap:10px"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card today">
+        <div id="mstrip"></div>
+        <h2>Today</h2>
+        <div id="allday"></div>
+        <div class="events" id="events"></div>
+        <div class="tomorrow" id="tomorrow"></div>
+      </div>
+    </div>
+    <div class="remind" id="msgcard" hidden></div>
+    <div class="remind" id="remind" hidden></div>
+    <div class="overlay" id="overlay" hidden></div>
+    <div class="setup" id="setup" hidden></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Address of the Apps Script web app (the /exec link). Can be overridden with &api= in the page link.
+  var DEFAULT_API = 'https://script.google.com/macros/s/AKfycbw1JY_JS05U7am_wtUvLvs_LHjv2hGKldUsoUTF_KLy2wmmtXIdI6fNDEzT12X0Q0YkDg/exec';
+  var TZ = 'America/Los_Angeles';
+  var COUNTDOWN = 5;          // seconds before an incoming call connects
+  var POLL_IDLE = 10000;      // ms between checks normally
+  var POLL_CALL = 3000;       // ms between checks while a call is happening
+
+  var qs = new URLSearchParams(location.search);
+  var KEY = qs.get('k') || '';
+  var API = qs.get('api') || DEFAULT_API;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var screen = $('screen'), fit = $('fit'), overlay = $('overlay');
+  var data = null, failures = 0, pollTimer = null;
+  var callUi = null;          // { id, name, color, phase: 'countdown' | 'calling' | 'live' | 'ended' }
+  var timers = [];
+
+  // Fit the 1280x800 design to the screen. Re-checked every second, because a page
+  // that loads while hidden (e.g. behind another app) measures the screen as 0 x 0.
+  var lastFit = '';
+  function scale() {
+    var w = fit.clientWidth, h = fit.clientHeight;
+    if (!w || !h || w + 'x' + h === lastFit) return;
+    lastFit = w + 'x' + h;
+    var s = Math.min(w / 1280, h / 800);
+    screen.style.transform = 'translate(' + (w - 1280 * s) / 2 + 'px,' + (h - 800 * s) / 2 + 'px) scale(' + s + ')';
+  }
+  window.addEventListener('resize', scale);
+  document.addEventListener('visibilitychange', scale);
+  scale();
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ----- Time in Grass Valley, whatever the device's own time zone -----
+  var fmtParts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hourCycle: 'h23' });
+  function pacific() {
+    var o = {};
+    fmtParts.formatToParts(new Date()).forEach(function (p) { o[p.type] = p.value; });
+    var h = Number(o.hour) % 24, m = Number(o.minute);
+    return { h: h, m: m, mins: h * 60 + m, weekday: o.weekday, month: o.month, day: o.day, year: o.year };
+  }
+  function partOf(h) { return h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 20 ? 'Evening' : 'Night'; }
+
+  var lastMinute = -1;
+  function tick() {
+    scale();
+    var p = pacific();
+    $('time').innerHTML = (p.h % 12 || 12) + ':' + String(p.m).padStart(2, '0') + '<small>' + (p.h < 12 ? 'AM' : 'PM') + '</small>';
+    $('day').textContent = p.weekday;
+    $('part').textContent = partOf(p.h);
+    $('date').textContent = p.month + ' ' + p.day + ', ' + p.year;
+    screen.classList.toggle('night', p.h >= 20 || p.h < 6);
+    if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); checkReminders(); renderMessages(); }
+  }
+
+  // ----- Schedule -----
+  function whoTitle(ev) {
+    return (ev.who ? '<span class="who ' + esc(ev.who) + '">' + esc(ev.whoLabel) + ':</span> ' : '') + esc(ev.title);
+  }
+  // A plain row: time and title only
+  function rowHtml(ev, cls) {
+    return '<div class="row ' + (cls || '') + '"><div class="t">' + (ev.allDay ? 'All day' : esc(ev.time)) + '</div>' +
+      '<div class="what">' + (cls === 'done' ? '<span class="tag">✓ Done:</span> ' : '') + whoTitle(ev) + '</div></div>';
+  }
+  // The big card for what's happening now or next, with its details
+  function nextHtml(ev, kicker) {
+    return '<div class="nextcard"><div class="nk">' + kicker + '</div>' +
+      '<div class="nt">' + esc(ev.time) + '</div>' +
+      '<div class="nw">' + whoTitle(ev) + '</div>' +
+      (ev.notes.length ? '<div class="nn">' + ev.notes.slice(0, 3).map(esc).join('<br>') + '</div>' : '') + '</div>';
+  }
+
+  function waitText(mins) {
+    if (mins < 60) return 'in ' + mins + (mins === 1 ? ' minute' : ' minutes');
+    var h = Math.round(mins / 60);
+    return 'in about ' + h + (h === 1 ? ' hour' : ' hours');
+  }
+
+  function renderEvents() {
+    if (!data) return;
+    var now = pacific().mins, cal = data.cal;
+    var allDay = cal.today.filter(function (i) { return i.allDay; });
+    var timed = cal.today.filter(function (i) { return !i.allDay; });
+
+    $('allday').innerHTML = allDay.length ? '<div class="allday">All day: ' + allDay.map(whoTitle).join(' · ') + '</div>' : '';
+
+    var done = timed.filter(function (i) { return i.e <= now; });
+    var rest = timed.filter(function (i) { return i.e > now; });   // [0] is now or next
+    var later = rest.slice(1);
+
+    // Finished item (if room), the big Next card, then a few later items by time and title
+    function draw(keepDone, n) {
+      if (!timed.length) return allDay.length ? '' : '<div class="quiet">Nothing scheduled today. Enjoy a quiet day.</div>';
+      var html = keepDone && done.length ? rowHtml(done[done.length - 1], 'done') : '';
+      if (!rest.length) return html + '<div class="quiet">That\'s everything for today.</div>';
+      var first = rest[0];
+      html += nextHtml(first, first.s <= now ? 'Happening now' : 'Next, ' + waitText(first.s - now));
+      if (n > 0) html += '<div class="sub">Later today</div>' + later.slice(0, n).map(function (ev) { return rowHtml(ev); }).join('');
+      if (later.length > n) html += '<div class="more">and ' + (later.length - n) + ' more later today</div>';
+      return html;
+    }
+
+    $('tomorrow').innerHTML = '<div class="label">Tomorrow, ' + esc(cal.tomorrowName) + '</div>' +
+      (cal.tomorrow.length ? cal.tomorrow.slice(0, 2).map(function (ev) { return rowHtml(ev); }).join('')
+        : '<div class="quiet">Nothing scheduled.</div>');
+
+    // Show as much as fits: drop the finished item first, then later items
+    var box = $('events'), keepDone = true, n = Math.min(4, later.length);
+    box.innerHTML = draw(keepDone, n);
+    while (box.scrollHeight > box.clientHeight + 2) {
+      if (keepDone && done.length) keepDone = false;
+      else if (n > 0) n--;
+      else break;
+      box.innerHTML = draw(keepDone, n);
+    }
+  }
+
+  // ----- Contacts and messages -----
+  var CAM = '<svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg>';
+  var THUMB = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v11H3V10z"/><path d="M7 10l4-8a3 3 0 0 1 3 3v4h6a2 2 0 0 1 2 2.3l-1.4 8A2 2 0 0 1 18.6 21H7"/></svg>';
+  var PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>';
+  function avatar(name, color, cls) { return '<span class="avatar ' + (cls || '') + '" style="background:' + esc(color) + '">' + esc(name.charAt(0)) + '</span>'; }
+
+  var contactsKey = '';
+  function renderContacts() {
+    var k = JSON.stringify(data.family);
+    if (k === contactsKey) return;
+    contactsKey = k;
+    $('contacts').innerHTML = data.family.map(function (f) {
+      return '<button class="callbtn" data-to="' + esc(f.id) + '">' + avatar(f.name, f.color) + esc(f.name) + CAM + '</button>';
+    }).join('');
+  }
+
+  // ----- Messages: a card pops over the calendar (and is read aloud), shrinks to a strip
+  //       after 10 minutes, and disappears once Rob or Rhonda taps a reply -----
+  var MSG_COLLAPSE = 10 * 60000;
+  var replying = {}, msgUiKey = '', msgConfirmUntil = 0, msgShownAt = {};
+  try { msgShownAt = JSON.parse(localStorage.getItem('rr_msg_shown') || '{}'); } catch (e) {}
+  function saveShown() { try { localStorage.setItem('rr_msg_shown', JSON.stringify(msgShownAt)); } catch (e) {} }
+
+  // Unanswered messages, oldest first
+  function pendingMsgs() {
+    return ((data && data.messages) || []).filter(function (m) { return !m.reply && !replying[m.id]; }).reverse();
+  }
+  function isQuiet() { var n = pacific().mins; return n >= QUIET_FROM || n < QUIET_UNTIL; }
+
+  function announceMsg(m, withChime) {
+    if (withChime) softChime();
+    setTimeout(function () { speak('New message from ' + m.from + '. ' + m.text); }, withChime ? 1300 : 0);
+  }
+
+  function renderMessages() {
+    if (!data) return;
+    var ids = {};
+    (data.messages || []).forEach(function (x) { ids[x.id] = 1; });
+    Object.keys(msgShownAt).forEach(function (k) { if (!ids[k]) delete msgShownAt[k]; });
+
+    var list = pendingMsgs(), m = list[0];
+    // A new message pops up with sound, unless it's night, a call is on, or a reminder is showing
+    if (m && !msgShownAt[m.id] && !isQuiet() && !callUi && !reminder) {
+      msgShownAt[m.id] = Date.now();
+      saveShown();
+      announceMsg(m, true);
+    }
+    drawMessages(list);
+  }
+
+  function drawMessages(list) {
+    if (Date.now() < msgConfirmUntil) return;
+    var m = list[0];
+    var open = !!(m && msgShownAt[m.id] && Date.now() - msgShownAt[m.id] < MSG_COLLAPSE);
+    var key = (m ? m.id : '') + '|' + open + '|' + list.length;
+    if (key === msgUiKey) return;
+    msgUiKey = key;
+    var strip = $('mstrip'), card = $('msgcard');
+    if (!m) {
+      strip.innerHTML = ''; card.hidden = true; card.innerHTML = '';
+    } else if (open) {
+      strip.innerHTML = '';
+      card.innerHTML = '<div class="box mcard"><div class="from">' + avatar(m.from, m.color) + 'Message from ' + esc(m.from) + '</div>' +
+        '<div class="body">' + esc(m.text) + '</div>' +
+        '<div class="replies"><button class="reply" data-r="Got it">' + THUMB + 'Got it</button>' +
+        '<button class="reply callme" data-r="Call me">' + PHONE + 'Call me</button></div>' +
+        (list.length > 1 ? '<div class="later">' + (list.length - 1) + ' more message' + (list.length > 2 ? 's' : '') + ' after this one</div>' : '') +
+        '</div>';
+      card.hidden = false;
+    } else {
+      card.hidden = true; card.innerHTML = '';
+      strip.innerHTML = '<button class="mstrip">' + avatar(m.from, m.color) +
+        (list.length > 1 ? list.length + ' new messages' : 'Message from ' + esc(m.from)) + '<span class="go">Tap to read</span></button>';
+    }
+    renderEvents();   // the strip changes how much room the calendar has
+  }
+
+  $('msgcard').addEventListener('click', function (e) {
+    var b = e.target.closest('.reply'); if (!b) return;
+    var m = pendingMsgs()[0]; if (!m) return;
+    var r = b.getAttribute('data-r');
+    replying[m.id] = r;
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (err) {}
+    api({ a: 'reply', id: m.id, r: r }).catch(function () { delete replying[m.id]; msgUiKey = ''; renderMessages(); });
+    // Brief confirmation, then the next message (if any)
+    $('msgcard').innerHTML = '<div class="box mcard"><div class="sentmsg">✓ ' + esc(m.from) + ' will get your reply: ' + esc(r) + '</div></div>';
+    msgConfirmUntil = Date.now() + 2500;
+    setTimeout(function () { msgConfirmUntil = 0; msgUiKey = ''; renderMessages(); }, 2600);
+  });
+
+  $('mstrip').addEventListener('click', function (e) {
+    if (!e.target.closest('.mstrip')) return;
+    var m = pendingMsgs()[0]; if (!m) return;
+    msgShownAt[m.id] = Date.now();   // reopen the card for another 10 minutes and read it again
+    saveShown();
+    announceMsg(m, false);
+    renderMessages();
+  });
+
+  // ----- Talking to the backend -----
+  function api(params) {
+    var u = API + (API.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(KEY);
+    Object.keys(params).forEach(function (k) { u += '&' + k + '=' + encodeURIComponent(params[k]); });
+    return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok && j.error) throw new Error(j.error);
+      return j;
+    });
+  }
+
+  function save(d) { try { localStorage.setItem('rr_screen', JSON.stringify(d)); } catch (e) {} }
+  function restore() { try { return JSON.parse(localStorage.getItem('rr_screen') || 'null'); } catch (e) { return null; } }
+
+  // ?demo=1 swaps in a busy sample day (for reviewing the layout); everything else stays live
+  function demoCal(tomorrowName) {
+    var n = pacific().mins, at = function (m) { var h = Math.floor(((m % 1440) + 1440) % 1440 / 60), mm = ((m % 60) + 60) % 60; return (h % 12 || 12) + ':' + String(mm).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM'); };
+    var it = function (s, len, who, title, notes, ride) { return { allDay: false, ride: !!ride, s: s, e: s + len, time: at(s), who: who, whoLabel: who === 'both' ? 'Both of you' : who.charAt(0).toUpperCase() + who.slice(1), title: title, notes: notes || [] }; };
+    return {
+      today: [
+        it(n - 120, 60, 'both', 'Exercise class', ['Where: Activity room.']),
+        it(n + 25, 15, 'rob', 'Eskaton van picks you up', ['Front entrance.', 'Going to: Eye doctor (Dr. Patel).'], true),
+        it(n + 70, 90, 'rob', 'Eye doctor (Dr. Patel)', ['Where: Eye clinic, Grass Valley.', 'Bring: glasses, insurance card.', 'Done about 3:30 PM.']),
+        it(n + 180, 30, 'both', 'Video call with Jen', []),
+        it(n + 240, 60, 'rhonda', 'Physical therapy', ['Comes to your apartment. Stay home.']),
+        it(n + 330, 90, 'both', 'Movie night', ['Where: Main lounge.'])
+      ],
+      tomorrowName: tomorrowName,
+      tomorrow: [it(600, 60, 'rhonda', 'Haircut', []), it(840, 60, 'rob', 'Dentist', []), it(900, 30, 'both', 'Call with Kiersten', [])]
+    };
+  }
+
+  function apply(d) {
+    if (qs.get('demo')) d.cal = demoCal(d.cal ? d.cal.tomorrowName : 'Monday');
+    data = d;
+    renderContacts(); renderEvents();
+    handleCall(d.call);
+    checkReminders();
+    renderMessages();
+  }
+
+  // ----- Spoken reminders -----
+  var REMIND_MIN = 15;              // minutes before an appointment
+  var REMIND_RIDE_MIN = 30;         // minutes before a ride pickup
+  var REPEAT_AFTER = 5 * 60000;     // say it once more if nobody taps OK
+  var QUIET_FROM = 22 * 60, QUIET_UNTIL = 6 * 60;   // silent 10 PM to 6 AM
+  var reminder = null, memReminded = {};
+
+  function reminderKey(i) { return data.day + '|' + i.s + '|' + i.title; }
+  function wasReminded(key) {
+    if (memReminded[key]) return true;
+    try { return !!JSON.parse(localStorage.getItem('rr_reminded') || '{}')[key]; } catch (e) { return false; }
+  }
+  function markReminded(key) {
+    memReminded[key] = true;
+    try {
+      var r = JSON.parse(localStorage.getItem('rr_reminded') || '{}');
+      Object.keys(r).forEach(function (k) { if (k.indexOf(data.day) !== 0) delete r[k]; });
+      r[key] = 1;
+      localStorage.setItem('rr_reminded', JSON.stringify(r));
+    } catch (e) {}
+  }
+
+  function whoName(i) { return i.who === 'rob' ? 'Rob' : i.who === 'rhonda' ? 'Rhonda' : i.who === 'both' ? 'Rob and Rhonda' : ''; }
+  function minutesText(n) { return n === 1 ? '1 minute' : n + ' minutes'; }
+  // "Eye doctor (Dr. Patel)" reads aloud as "eye doctor, Dr. Patel,"
+  function spoken(t) {
+    t = String(t).replace(/\s*\(([^)]*)\)/g, ', $1,').trim();
+    return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+  }
+
+  function reminderText(i, mins) {
+    var name = whoName(i), lead = name ? name + ', a reminder: ' : 'A reminder: ';
+    if (i.ride) {
+      var what = /^eskaton/i.test(i.title) ? 'the ' + i.title : spoken(i.title);
+      var detail = i.notes.filter(function (n) { return !/^Going to:/.test(n); })[0];
+      return lead + what + ' in ' + minutesText(mins) + '.' + (detail ? ' ' + detail : '');
+    }
+    var home = i.notes.some(function (n) { return /Comes to your apartment/.test(n); });
+    return lead + 'your ' + spoken(i.title) + ' is in ' + minutesText(mins) + '.' + (home ? ' They are coming to your apartment.' : '');
+  }
+
+  function speak(text) {
+    try {
+      // Fully Kiosk's own text-to-speech works without a tap; the browser's is the fallback
+      if (window.fully && typeof fully.textToSpeech === 'function') { fully.textToSpeech(text); return; }
+      if (window.speechSynthesis) {
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US'; u.rate = 0.9;
+        speechSynthesis.cancel(); speechSynthesis.speak(u);
+      }
+    } catch (e) { /* the banner still shows */ }
+  }
+
+  function softChime() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [[523, 0], [784, .4]].forEach(function (n) {
+        var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + n[1];
+        o.frequency.value = n[0]; o.type = 'sine';
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.22, t + .04); g.gain.exponentialRampToValueAtTime(.001, t + 1);
+        o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 1.1);
+      });
+    } catch (e) {}
+  }
+
+  function announce(i, mins) {
+    softChime();
+    setTimeout(function () { speak(reminderText(i, mins)); }, 1300);
+  }
+
+  function checkReminders() {
+    if (!data || !data.cal || qs.get('demo')) return;   // no spoken reminders for sample appointments
+    var now = pacific().mins;
+    if (reminder && now >= reminder.s + 20) hideReminder();   // tidy up 20 minutes after it starts
+    if (now >= QUIET_FROM || now < QUIET_UNTIL || callUi) return;
+    var due = data.cal.today.filter(function (i) {
+      if (i.allDay) return false;
+      var lead = i.ride ? REMIND_RIDE_MIN : REMIND_MIN;
+      return now >= i.s - lead && now < i.s && !wasReminded(reminderKey(i));
+    })[0];
+    if (due) showReminder(due, due.s - now);
+  }
+
+  function showReminder(i, mins) {
+    var key = reminderKey(i), name = whoName(i);
+    markReminded(key);
+    if (reminder) clearTimeout(reminder.repeat);
+    var detail = i.ride ? i.notes.filter(function (n) { return !/^Going to:/.test(n); })[0] : '';
+    $('remind').innerHTML = '<div class="box"><div class="kicker">Reminder</div>' +
+      '<div class="rmsg">' + (name ? '<span class="who ' + esc(i.who) + '">' + esc(name) + ':</span> ' : '') + esc(i.title) + '</div>' +
+      '<div class="rsub">At ' + esc(i.time) + (detail ? '<br>' + esc(detail) : '') + '</div>' +
+      '<button class="ok" id="remindOk">OK</button></div>';
+    $('remind').hidden = false;
+    $('remindOk').onclick = hideReminder;
+    reminder = {
+      key: key, s: i.s,
+      repeat: setTimeout(function () {
+        var left = i.s - pacific().mins;
+        if (reminder && reminder.key === key && !callUi && left > 0) announce(i, left);
+      }, REPEAT_AFTER)
+    };
+    announce(i, mins);
+  }
+
+  function hideReminder() {
+    if (reminder) clearTimeout(reminder.repeat);
+    reminder = null;
+    $('remind').hidden = true;
+    $('remind').innerHTML = '';
+    renderMessages();   // a message that waited for the reminder can show now
+  }
+
+  // Lets Eric preview a reminder remotely (from the browser console)
+  window.rrScreen = { showReminder: showReminder, reminderText: reminderText };
+
+  function poll() {
+    clearTimeout(pollTimer);
+    api({ a: 'screen' }).then(function (d) {
+      failures = 0; $('offline').hidden = true;
+      save(d); apply(d);
+    }).catch(function () {
+      failures++;
+      if (failures >= 3) $('offline').hidden = false;
+    }).then(function () {
+      pollTimer = setTimeout(poll, callUi && callUi.phase !== 'ended' ? POLL_CALL : POLL_IDLE);
+    });
+  }
+
+  // ----- Calls -----
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  function chime() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [[660, 0], [880, .35], [660, 1.2], [880, 1.55]].forEach(function (n) {
+        var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + n[1];
+        o.frequency.value = n[0]; o.type = 'sine';
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.25, t + .03); g.gain.exponentialRampToValueAtTime(.001, t + .6);
+        o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + .7);
+      });
+    } catch (e) { /* sound is optional */ }
+  }
+
+  function handleCall(c) {
+    if (c && c.dir === 'in' && c.state === 'ringing' && (!callUi || callUi.id !== c.id)) return incoming(c);
+    if (c && callUi && callUi.id === c.id && c.state === 'live' && callUi.phase !== 'live' && callUi.phase !== 'countdown') return connected(c);
+    if (!c && callUi && callUi.phase !== 'ended') return ended(callUi.phase === 'calling' ? 'No answer' : 'Call ended');
+  }
+
+  function incoming(c) {
+    clearTimers(); chime();
+    callUi = { id: c.id, name: c.name, color: c.color, phase: 'countdown' };
+    var left = COUNTDOWN;
+    function draw() {
+      overlay.hidden = false;
+      overlay.innerHTML = '<div class="ring">' + avatar(c.name, c.color, 'big') + '</div><h3>' + esc(c.name) + ' is calling</h3><p>Connecting in ' + left + '…</p>';
+    }
+    draw();
+    function step() {
+      left--;
+      if (left > 0) { draw(); later(step, 1000); return; }
+      api({ a: 'answer', id: c.id }).then(function (j) { connected(j.call); }).catch(function () { ended('Call ended'); });
+    }
+    later(step, 1000);
+  }
+
+  function outgoing(to) {
+    var f = data.family.filter(function (x) { return x.id === to; })[0];
+    if (!f || callUi) return;
+    clearTimers();
+    callUi = { id: null, name: f.name, color: f.color, phase: 'calling' };
+    overlay.hidden = false;
+    overlay.innerHTML = '<div class="ring">' + avatar(f.name, f.color, 'big') + '</div><h3>Calling ' + esc(f.name) + '…</h3><p>Waiting for ' + esc(f.name) + ' to answer.</p>' +
+      '<button class="cancel" id="cancel">Cancel</button>';
+    $('cancel').onclick = hangUp;
+    api({ a: 'call', to: to }).then(function (j) { callUi.id = j.call.id; poll(); })
+      .catch(function () { ended('Could not call right now'); });
+  }
+
+  function connected(c) {
+    clearTimers();
+    callUi = { id: c.id, name: c.name, color: c.color, phase: 'live' };
+    var t0 = Date.now();
+    overlay.hidden = false;
+    var video = c.room
+      ? '<div class="video"><iframe src="' + esc(c.room) + '" allow="camera; microphone; autoplay; display-capture"></iframe></div>'
+      : '<div class="video"><div class="face">' + avatar(c.name, c.color, 'big') + 'Video connects here once it\'s set up</div></div>';
+    overlay.innerHTML = video +
+      '<div class="callbar"><span>Talking with ' + esc(c.name) + ' · <span id="dur">0:00</span></span>' +
+      '<button class="hangup" id="hangup">' + PHONE + 'Hang up</button></div>';
+    $('hangup').onclick = hangUp;
+    (function run() {
+      var s = Math.floor((Date.now() - t0) / 1000), el = $('dur');
+      if (el) { el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); later(run, 1000); }
+    })();
+    poll();
+  }
+
+  function hangUp() {
+    var id = callUi && callUi.id;
+    ended('Call ended');
+    if (id) api({ a: 'endcall', id: id }).catch(function () {});
+  }
+
+  function ended(text) {
+    clearTimers();
+    if (callUi) callUi.phase = 'ended';
+    overlay.hidden = false;
+    overlay.innerHTML = '<h3>' + esc(text) + '</h3>';
+    later(function () { overlay.hidden = true; overlay.innerHTML = ''; callUi = null; renderMessages(); }, 2500);
+  }
+
+  $('contacts').addEventListener('click', function (e) {
+    var b = e.target.closest('.callbtn'); if (b) outgoing(b.getAttribute('data-to'));
+  });
+
+  // ----- Start -----
+  tick(); setInterval(tick, 1000);
+  // Re-fit the schedule once the large font has loaded (it changes text sizes)
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { renderEvents(); });
+  if (!KEY || !API) {
+    $('setup').hidden = false;
+    $('setup').textContent = 'This screen needs its setup link. Eric can fix this remotely.';
+    return;
+  }
+  var saved = restore();
+  if (saved) { saved.call = null; apply(saved); }
+  poll();
+})();
+</script>
+</body>
+</html>
