@@ -22,7 +22,7 @@
     --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", Verdana, "Segoe UI", sans-serif;
     position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0;
     background: var(--s-bg); color: var(--s-ink); font-family: var(--font);
-    display: grid; grid-template-columns: 400px minmax(0, 1fr) 340px; gap: 22px; padding: 26px; box-sizing: border-box;
+    display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
     transition: background .6s, color .6s; user-select: none; -webkit-user-select: none;
   }
   .screen.night {
@@ -46,37 +46,44 @@
   .callbtn .cam { margin-left: auto; width: 38px; height: 38px; color: var(--s-call); }
   .avatar { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 28px; color: #fff; }
 
-  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
-  .today h2, .msgs h2 { margin: 0 0 6px; font-size: 32px; }
-  .allday { font-size: 23px; padding: 4px 12px 8px; }
-  .ev { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 14px; padding: 11px 12px; border-radius: 12px; }
-  .ev .t { font-size: 25px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .ev .what { font-size: 25px; font-weight: 600; line-height: 1.25; }
+  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; padding: 22px 26px; }
+  .today h2 { margin: 0 0 2px; font-size: 38px; }
+  .events { flex: 1; min-height: 0; overflow: hidden; display: grid; align-content: start; gap: 4px; }
+  .allday { font-size: 27px; padding: 2px 14px 6px; }
+  .ev { display: grid; grid-template-columns: 158px minmax(0, 1fr); gap: 18px; padding: 12px 14px; border-radius: 14px; }
+  .ev .t { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ev .what { font-size: 32px; font-weight: 600; line-height: 1.22; }
   .ev .who { font-weight: 800; }
   .who.rob { color: var(--rob); } .who.rhonda { color: var(--rhonda); } .who.both { color: var(--both); }
-  .ev .n { font-size: 19px; color: var(--s-muted); line-height: 1.35; margin-top: 3px; }
+  .ev .n { font-size: 23px; color: var(--s-muted); line-height: 1.35; margin-top: 4px; }
   .ev.done { opacity: .42; }
   .ev.done .t::after { content: " ✓"; }
   .ev.next { background: var(--s-next); }
-  .pill { display: inline-block; font-size: 17px; font-weight: 700; color: var(--s-next-ink); margin-bottom: 4px; letter-spacing: .02em; }
-  .quiet { font-size: 25px; color: var(--s-muted); padding: 8px 12px; }
-  .more { font-size: 20px; color: var(--s-muted); padding: 2px 12px; }
-  .tomorrow { margin-top: auto; padding-top: 12px; border-top: 2px solid var(--s-line); display: grid; gap: 4px; }
+  .pill { display: inline-block; font-size: 20px; font-weight: 700; color: var(--s-next-ink); margin-bottom: 4px; letter-spacing: .02em; }
+  .quiet { font-size: 30px; color: var(--s-muted); padding: 10px 14px; }
+  .more { font-size: 24px; color: var(--s-muted); padding: 4px 14px; }
+  .tomorrow { padding-top: 12px; border-top: 2px solid var(--s-line); display: grid; gap: 2px; }
+  .tomorrow .label { padding-left: 14px; }
   .tomorrow .ev { padding-block: 6px; }
-  .tomorrow .ev .t, .tomorrow .ev .what { font-size: 22px; }
+  .tomorrow .ev .t, .tomorrow .ev .what { font-size: 26px; }
+  .tomorrow .ev .n { font-size: 20px; }
+  .tomorrow .quiet { font-size: 24px; }
 
-  .msgs { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
-  .msg { display: grid; gap: 10px; padding-bottom: 14px; border-bottom: 2px solid var(--s-line); }
-  .msg:last-child { border-bottom: 0; }
-  .msg .from { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 700; }
-  .msg .from .avatar { width: 48px; height: 48px; font-size: 22px; }
-  .msg .from span { font-weight: 400; font-size: 19px; color: var(--s-muted); }
-  .msg .body { font-size: 25px; line-height: 1.3; overflow-wrap: anywhere; }
-  .replies { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .reply { font: 700 22px var(--font); padding: 12px 8px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
-    background: var(--s-bg); color: var(--s-ink); border: 2px solid var(--s-line); }
-  .reply svg { width: 26px; height: 26px; }
-  .sent { font-size: 21px; font-weight: 600; color: var(--s-call); }
+  /* Messages: a card pops over the calendar, then shrinks to a strip until answered */
+  .mstrip { display: flex; align-items: center; gap: 16px; width: 100%; padding: 10px 18px 10px 10px; border-radius: 16px; cursor: pointer; text-align: left;
+    background: var(--s-call-soft); border: 2px solid var(--s-call); color: var(--s-ink); font: 700 28px var(--font); }
+  .mstrip .avatar { width: 52px; height: 52px; font-size: 24px; }
+  .mstrip .go { margin-left: auto; font-size: 22px; color: var(--s-call); white-space: nowrap; }
+  .mcard { width: 860px; max-width: 860px; }
+  .mcard .from { display: flex; align-items: center; gap: 16px; font-size: 32px; font-weight: 800; }
+  .mcard .body { font-size: 46px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+  .mcard .replies { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; margin-top: 6px; }
+  .reply { font: 800 34px var(--font); padding: 20px 16px; border-radius: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 12px;
+    border: 0; color: #fff; background: var(--s-call); }
+  .reply.callme { background: var(--rob); }
+  .reply svg { width: 36px; height: 36px; }
+  .mcard .later { font-size: 22px; color: var(--s-muted); }
+  .mcard .sentmsg { font-size: 44px; font-weight: 700; color: var(--s-call); }
 
   .overlay { position: absolute; inset: 0; background: var(--s-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
   .overlay .big { width: 200px; height: 200px; font-size: 92px; }
@@ -122,18 +129,14 @@
     </div>
     <div class="col">
       <div class="card today">
+        <div id="mstrip"></div>
         <h2>Today</h2>
         <div id="allday"></div>
-        <div id="events"></div>
+        <div class="events" id="events"></div>
         <div class="tomorrow" id="tomorrow"></div>
       </div>
     </div>
-    <div class="col">
-      <div class="card msgs">
-        <h2>Messages</h2>
-        <div id="msgs" style="display:grid;gap:14px"></div>
-      </div>
-    </div>
+    <div class="remind" id="msgcard" hidden></div>
     <div class="remind" id="remind" hidden></div>
     <div class="overlay" id="overlay" hidden></div>
     <div class="setup" id="setup" hidden></div>
@@ -194,7 +197,7 @@
     $('part').textContent = partOf(p.h);
     $('date').textContent = p.month + ' ' + p.day + ', ' + p.year;
     screen.classList.toggle('night', p.h >= 20 || p.h < 6);
-    if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); checkReminders(); }
+    if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); checkReminders(); renderMessages(); }
   }
 
   // ----- Schedule -----
@@ -221,26 +224,39 @@
       return (i.who ? '<span class="who ' + esc(i.who) + '">' + esc(i.whoLabel) + ':</span> ' : '') + esc(i.title);
     }).join(' · ') + '</div>' : '';
 
-    // Keep the list short: the most recent finished item, then what's still to come
+    // The most recent finished item, then what's still to come
     var done = timed.filter(function (i) { return i.e <= now; });
     var rest = timed.filter(function (i) { return i.e > now; });
-    var shown = done.slice(-1).concat(rest.slice(0, 5));
-    var html = '', nextFound = false;
-    shown.forEach(function (ev) {
-      if (ev.e <= now) html += evHtml(ev, 'done');
-      else if (ev.s <= now) html += evHtml(ev, 'next', 'Happening now');
-      else if (!nextFound) { nextFound = true; html += evHtml(ev, 'next', 'Next, ' + waitText(ev.s - now)); }
-      else html += evHtml(ev, '');
-    });
-    if (rest.length > 5) html += '<div class="more">and ' + (rest.length - 5) + ' more later today</div>';
-    if (!timed.length && !allDay.length) html = '<div class="quiet">Nothing scheduled today. Enjoy a quiet day.</div>';
-    else if (!rest.length && timed.length) html += '<div class="quiet">That\'s everything for today.</div>';
-    $('events').innerHTML = html;
+
+    function draw(keepDone, n) {
+      var shown = (keepDone ? done.slice(-1) : []).concat(rest.slice(0, n));
+      var html = '', nextFound = false;
+      shown.forEach(function (ev) {
+        if (ev.e <= now) html += evHtml(ev, 'done');
+        else if (ev.s <= now) html += evHtml(ev, 'next', 'Happening now');
+        else if (!nextFound) { nextFound = true; html += evHtml(ev, 'next', 'Next, ' + waitText(ev.s - now)); }
+        else html += evHtml(ev, '');
+      });
+      if (rest.length > n) html += '<div class="more">and ' + (rest.length - n) + ' more later today</div>';
+      if (!timed.length && !allDay.length) html = '<div class="quiet">Nothing scheduled today. Enjoy a quiet day.</div>';
+      else if (!rest.length && timed.length) html += '<div class="quiet">That\'s everything for today.</div>';
+      return html;
+    }
 
     $('tomorrow').innerHTML = '<div class="label">Tomorrow, ' + esc(cal.tomorrowName) + '</div>' +
-      (cal.tomorrow.length ? cal.tomorrow.slice(0, 2).map(function (ev) {
+      (cal.tomorrow.length ? cal.tomorrow.slice(0, 3).map(function (ev) {
         return ev.allDay ? '<div class="ev"><div class="t">All day</div><div class="what">' + (ev.who ? '<span class="who ' + esc(ev.who) + '">' + esc(ev.whoLabel) + ':</span> ' : '') + esc(ev.title) + '</div></div>' : evHtml(ev, '');
       }).join('') : '<div class="quiet">Nothing scheduled.</div>');
+
+    // Show as many items as fit: drop the finished one first, then the latest ones
+    var box = $('events'), keepDone = true, n = Math.min(6, rest.length);
+    box.innerHTML = draw(keepDone, n);
+    while (box.scrollHeight > box.clientHeight + 2) {
+      if (keepDone && done.length) keepDone = false;
+      else if (n > 1) n--;
+      else break;
+      box.innerHTML = draw(keepDone, n);
+    }
   }
 
   // ----- Contacts and messages -----
@@ -259,25 +275,87 @@
     }).join('');
   }
 
-  var replying = {};
-  function renderMsgs() {
-    var list = data.messages;
-    $('msgs').innerHTML = list.length ? list.map(function (m) {
-      var reply = m.reply || replying[m.id];
-      return '<div class="msg"><div class="from">' + avatar(m.from, m.color) + esc(m.from) + ' <span>' + esc(m.when) + '</span></div>' +
-        '<div class="body">' + esc(m.text) + '</div>' +
-        (reply ? '<div class="sent">✓ You told ' + esc(m.from) + ': ' + esc(reply) + '</div>' :
-          '<div class="replies"><button class="reply" data-id="' + esc(m.id) + '" data-r="Got it">' + THUMB + 'Got it</button>' +
-          '<button class="reply" data-id="' + esc(m.id) + '" data-r="Call me">' + PHONE + 'Call me</button></div>') + '</div>';
-    }).join('') : '<div class="quiet" style="padding:0">No new messages.</div>';
+  // ----- Messages: a card pops over the calendar (and is read aloud), shrinks to a strip
+  //       after 10 minutes, and disappears once Rob or Rhonda taps a reply -----
+  var MSG_COLLAPSE = 10 * 60000;
+  var replying = {}, msgUiKey = '', msgConfirmUntil = 0, msgShownAt = {};
+  try { msgShownAt = JSON.parse(localStorage.getItem('rr_msg_shown') || '{}'); } catch (e) {}
+  function saveShown() { try { localStorage.setItem('rr_msg_shown', JSON.stringify(msgShownAt)); } catch (e) {} }
+
+  // Unanswered messages, oldest first
+  function pendingMsgs() {
+    return ((data && data.messages) || []).filter(function (m) { return !m.reply && !replying[m.id]; }).reverse();
+  }
+  function isQuiet() { var n = pacific().mins; return n >= QUIET_FROM || n < QUIET_UNTIL; }
+
+  function announceMsg(m, withChime) {
+    if (withChime) softChime();
+    setTimeout(function () { speak('New message from ' + m.from + '. ' + m.text); }, withChime ? 1300 : 0);
   }
 
-  $('msgs').addEventListener('click', function (e) {
+  function renderMessages() {
+    if (!data) return;
+    var ids = {};
+    (data.messages || []).forEach(function (x) { ids[x.id] = 1; });
+    Object.keys(msgShownAt).forEach(function (k) { if (!ids[k]) delete msgShownAt[k]; });
+
+    var list = pendingMsgs(), m = list[0];
+    // A new message pops up with sound, unless it's night, a call is on, or a reminder is showing
+    if (m && !msgShownAt[m.id] && !isQuiet() && !callUi && !reminder) {
+      msgShownAt[m.id] = Date.now();
+      saveShown();
+      announceMsg(m, true);
+    }
+    drawMessages(list);
+  }
+
+  function drawMessages(list) {
+    if (Date.now() < msgConfirmUntil) return;
+    var m = list[0];
+    var open = !!(m && msgShownAt[m.id] && Date.now() - msgShownAt[m.id] < MSG_COLLAPSE);
+    var key = (m ? m.id : '') + '|' + open + '|' + list.length;
+    if (key === msgUiKey) return;
+    msgUiKey = key;
+    var strip = $('mstrip'), card = $('msgcard');
+    if (!m) {
+      strip.innerHTML = ''; card.hidden = true; card.innerHTML = '';
+    } else if (open) {
+      strip.innerHTML = '';
+      card.innerHTML = '<div class="box mcard"><div class="from">' + avatar(m.from, m.color) + 'Message from ' + esc(m.from) + '</div>' +
+        '<div class="body">' + esc(m.text) + '</div>' +
+        '<div class="replies"><button class="reply" data-r="Got it">' + THUMB + 'Got it</button>' +
+        '<button class="reply callme" data-r="Call me">' + PHONE + 'Call me</button></div>' +
+        (list.length > 1 ? '<div class="later">' + (list.length - 1) + ' more message' + (list.length > 2 ? 's' : '') + ' after this one</div>' : '') +
+        '</div>';
+      card.hidden = false;
+    } else {
+      card.hidden = true; card.innerHTML = '';
+      strip.innerHTML = '<button class="mstrip">' + avatar(m.from, m.color) +
+        (list.length > 1 ? list.length + ' new messages' : 'Message from ' + esc(m.from)) + '<span class="go">Tap to read</span></button>';
+    }
+    renderEvents();   // the strip changes how much room the calendar has
+  }
+
+  $('msgcard').addEventListener('click', function (e) {
     var b = e.target.closest('.reply'); if (!b) return;
-    var id = b.getAttribute('data-id');
-    replying[id] = b.getAttribute('data-r');
-    renderMsgs();
-    api({ a: 'reply', id: id, r: replying[id] }).catch(function () { delete replying[id]; renderMsgs(); });
+    var m = pendingMsgs()[0]; if (!m) return;
+    var r = b.getAttribute('data-r');
+    replying[m.id] = r;
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (err) {}
+    api({ a: 'reply', id: m.id, r: r }).catch(function () { delete replying[m.id]; msgUiKey = ''; renderMessages(); });
+    // Brief confirmation, then the next message (if any)
+    $('msgcard').innerHTML = '<div class="box mcard"><div class="sentmsg">✓ ' + esc(m.from) + ' will get your reply: ' + esc(r) + '</div></div>';
+    msgConfirmUntil = Date.now() + 2500;
+    setTimeout(function () { msgConfirmUntil = 0; msgUiKey = ''; renderMessages(); }, 2600);
+  });
+
+  $('mstrip').addEventListener('click', function (e) {
+    if (!e.target.closest('.mstrip')) return;
+    var m = pendingMsgs()[0]; if (!m) return;
+    msgShownAt[m.id] = Date.now();   // reopen the card for another 10 minutes and read it again
+    saveShown();
+    announceMsg(m, false);
+    renderMessages();
   });
 
   // ----- Talking to the backend -----
@@ -295,9 +373,10 @@
 
   function apply(d) {
     data = d;
-    renderContacts(); renderEvents(); renderMsgs();
+    renderContacts(); renderEvents();
     handleCall(d.call);
     checkReminders();
+    renderMessages();
   }
 
   // ----- Spoken reminders -----
@@ -409,6 +488,7 @@
     reminder = null;
     $('remind').hidden = true;
     $('remind').innerHTML = '';
+    renderMessages();   // a message that waited for the reminder can show now
   }
 
   // Lets Eric preview a reminder remotely (from the browser console)
@@ -509,7 +589,7 @@
     if (callUi) callUi.phase = 'ended';
     overlay.hidden = false;
     overlay.innerHTML = '<h3>' + esc(text) + '</h3>';
-    later(function () { overlay.hidden = true; overlay.innerHTML = ''; callUi = null; }, 2500);
+    later(function () { overlay.hidden = true; overlay.innerHTML = ''; callUi = null; renderMessages(); }, 2500);
   }
 
   $('contacts').addEventListener('click', function (e) {
