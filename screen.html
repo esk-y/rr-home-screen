@@ -159,11 +159,19 @@
   var callUi = null;          // { id, name, color, phase: 'countdown' | 'calling' | 'live' | 'ended' }
   var timers = [];
 
+  // Fit the 1280x800 design to the screen. Re-checked every second, because a page
+  // that loads while hidden (e.g. behind another app) measures the screen as 0 x 0.
+  var lastFit = '';
   function scale() {
-    var s = Math.min(fit.clientWidth / 1280, fit.clientHeight / 800);
-    screen.style.transform = 'translate(' + (fit.clientWidth - 1280 * s) / 2 + 'px,' + (fit.clientHeight - 800 * s) / 2 + 'px) scale(' + s + ')';
+    var w = fit.clientWidth, h = fit.clientHeight;
+    if (!w || !h || w + 'x' + h === lastFit) return;
+    lastFit = w + 'x' + h;
+    var s = Math.min(w / 1280, h / 800);
+    screen.style.transform = 'translate(' + (w - 1280 * s) / 2 + 'px,' + (h - 800 * s) / 2 + 'px) scale(' + s + ')';
   }
-  window.addEventListener('resize', scale); scale();
+  window.addEventListener('resize', scale);
+  document.addEventListener('visibilitychange', scale);
+  scale();
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
@@ -179,6 +187,7 @@
 
   var lastMinute = -1;
   function tick() {
+    scale();
     var p = pacific();
     $('time').innerHTML = (p.h % 12 || 12) + ':' + String(p.m).padStart(2, '0') + '<small>' + (p.h < 12 ? 'AM' : 'PM') + '</small>';
     $('day').textContent = p.weekday;
