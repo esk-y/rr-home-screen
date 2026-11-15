@@ -41,8 +41,16 @@
   .reply.callme { color: var(--end); }
   .del { background: none; color: var(--muted); padding: 0; font-weight: 600; font-size: .9rem; margin-left: auto; text-decoration: underline; }
   .err { color: var(--end); margin: 0; }
+  /* Full-screen video while on a call */
+  .vwrap { position: fixed; inset: 0; z-index: 50; background: #000; display: flex; flex-direction: column; }
+  #vframe { flex: 1; position: relative; }
+  .vbar { display: flex; align-items: center; gap: 12px; background: #111; color: #fff;
+    padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .vbar span { margin-right: auto; font-weight: 700; }
+  .vbar .endbtn { width: auto; padding: 14px 28px; font-size: 1.1rem; }
   [hidden] { display: none !important; }
 </style>
+<script src="https://unpkg.com/@daily-co/daily-js@0.94.0/dist/daily.js"></script>
 </head>
 <body>
 <main>
@@ -71,7 +79,7 @@
       <span class="count" id="count">0 / 200</span>
       <button class="send" id="sendBtn">Send</button>
     </div>
-    <p class="note">It shows on their screen right away. They can tap "Got it" or "Call me", and you'll get an email when they do.</p>
+    <p class="note">It pops up on their screen and is read aloud. They can tap "Got it" or "Call me", and you'll get an alert when they do.</p>
     <p class="err" id="err" hidden></p>
   </section>
 
@@ -80,6 +88,11 @@
     <div id="list"><p class="note">Loading…</p></div>
   </section>
 </main>
+
+<div class="vwrap" id="vwrap" hidden>
+  <div id="vframe"></div>
+  <div class="vbar"><span id="vstatus">Connecting…</span><button class="endbtn" id="vend">Hang up</button></div>
+</div>
 
 <script>
   // Rob & Rhonda family page. Open as: family-page.html?f=YOUR_KEY
@@ -125,8 +138,42 @@
     }).join('') : '<p class="note">No messages yet.</p>';
   }
 
+  // ----- Video (Daily) -----
+  var frame = null, inVideo = false;
+
+  function openVideo(c) {
+    if (inVideo || !c || c.busy || !c.room || !window.Daily) return;
+    inVideo = true;
+    $('vwrap').hidden = false;
+    $('vstatus').textContent = c.state === 'live' ? 'Connecting…' : 'Waiting for their screen to answer…';
+    try {
+      frame = Daily.createFrame($('vframe'), {
+        iframeStyle: { position: 'absolute', top: '0', left: '0', width: '100%', height: '100%', border: '0' },
+        showLeaveButton: false, showFullscreenButton: false
+      });
+      frame.on('participant-joined', function () { $('vstatus').textContent = 'Talking with Rob & Rhonda'; });
+      frame.on('participant-left', function () { $('vstatus').textContent = 'Rob & Rhonda left the call'; });
+      frame.join({ url: c.room, token: c.token }).catch(function (e) { $('vstatus').textContent = 'Video could not start: ' + ((e && e.errorMsg) || e); });
+    } catch (e) {
+      $('vstatus').textContent = 'Video could not start.';
+    }
+  }
+
+  function closeVideo() {
+    if (!inVideo) return;
+    inVideo = false;
+    var f = frame; frame = null;
+    if (f) { try { f.destroy(); } catch (e) {} }
+    $('vframe').innerHTML = '';
+    $('vwrap').hidden = true;
+  }
+
+  function hangUp() { closeVideo(); run({ a: "end" }); }
+
   function renderCall(c) {
     var active = c && !c.busy;
+    if (inVideo && !active) closeVideo();   // they hung up, or the call timed out
+    if (inVideo && active && c.state === 'live') $('vstatus').textContent = 'Talking with Rob & Rhonda';
     $('callIdle').hidden = !!active;
     $('callActive').hidden = !active;
     $('callBtn').disabled = !!(c && c.busy);
@@ -138,10 +185,11 @@
     }
     $('callNote').textContent = 'Their screen answers by itself after a 5-second countdown.';
     if (!active) return;
-    var video = c.room ? ' <a href="' + esc(c.room) + '" target="_blank">Open the video</a>' : '';
     if (c.dir === 'in' && c.state === 'ringing') $('callStatus').textContent = 'Calling their screen… it connects within about 15 seconds.';
-    else if (c.dir === 'out' && c.state === 'ringing') { $('callStatus').textContent = 'Rob & Rhonda are calling you!'; $('joinRow').hidden = false; }
-    else $('callStatus').innerHTML = 'Connected.' + (video || ' Video will work here once the video service is set up.');
+    else if (c.dir === 'out' && c.state === 'ringing') { $('callStatus').textContent = 'Rob & Rhonda are calling you!'; $('joinBtn').textContent = 'Join the call'; $('joinRow').hidden = false; }
+    else if (!c.room) $('callStatus').textContent = 'Connected. (Video isn\'t set up yet.)';
+    else if (!inVideo) { $('callStatus').textContent = 'Connected.'; $('joinBtn').textContent = 'Open the video'; $('joinRow').hidden = false; }
+    else $('callStatus').textContent = 'On the video call.';
   }
 
   $('text').addEventListener('input', function () { $('count').textContent = $('text').value.length + ' / 200'; });
@@ -158,9 +206,22 @@
     var b = e.target.closest('.del');
     if (b) run({ a: "del", id: b.getAttribute('data-id') });
   });
-  $('callBtn').addEventListener('click', function () { run({ a: "call" }); });
-  $('joinBtn').addEventListener('click', function () { run({ a: "join" }); });
-  $('endBtn').addEventListener('click', function () { run({ a: "end" }); });
+  // One tap starts the call and opens the video, which waits there while their screen answers
+  $('callBtn').addEventListener('click', function () {
+    $('callBtn').disabled = true;
+    api({ a: "call" }).then(function (s) { lastJson = ''; render(s); openVideo(s.call); })
+      .catch(showErr).then(function () { $('callBtn').disabled = false; });
+  });
+  $('joinBtn').addEventListener('click', function () {
+    var c = state && state.call;
+    if (c && c.dir === 'out' && c.state === 'ringing') {
+      api({ a: "join" }).then(function (s) { lastJson = ''; render(s); openVideo(s.call); }).catch(showErr);
+    } else {
+      openVideo(c);
+    }
+  });
+  $('endBtn').addEventListener('click', hangUp);
+  $('vend').addEventListener('click', hangUp);
 
   function poll() {
     if (!document.hidden && fkey) api({ a: "state" }).then(render).catch(function () {});

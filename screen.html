@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rob &amp; Rhonda's Home Screen</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&display=swap">
+<!-- Daily video library (pinned version) -->
+<script src="https://unpkg.com/@daily-co/daily-js@0.94.0/dist/daily.js"></script>
 <!--
   Rob & Rhonda's home screen (Phase 2) - the page the tablet shows all day.
   Open it as:  screen.html?k=TABLET_KEY            (uses the API address below)
@@ -105,10 +107,12 @@
   .ring { animation: ring 1.2s ease-in-out infinite; }
   @keyframes ring { 50% { transform: scale(1.06); } }
   .video { position: absolute; inset: 0; background: radial-gradient(circle at 50% 40%, #3a3f4c, #15181d 70%); display: grid; place-items: center; color: #e4e8ee; }
-  .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-  .video .face { display: grid; gap: 14px; justify-items: center; font-size: 26px; opacity: .85; }
+  .video #vremote { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .video #vself { position: absolute; right: 24px; top: 24px; width: 260px; height: 195px; object-fit: cover; border-radius: 18px;
+    border: 4px solid #fff; background: #222; transform: scaleX(-1); }
+  .video .face { position: relative; display: grid; gap: 14px; justify-items: center; font-size: 34px; font-weight: 700; }
   .callbar { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 30px; display: flex; align-items: center; gap: 20px;
-    background: rgba(0,0,0,.55); color: #fff; font-size: 30px; font-weight: 600; }
+    background: rgba(0,0,0,.6); color: #fff; font-size: 34px; font-weight: 700; }
   .hangup { margin-left: auto; font: 800 34px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 20px; padding: 20px 46px; cursor: pointer; display: flex; gap: 12px; align-items: center; }
   .hangup svg { width: 34px; height: 34px; }
   .cancel { font: 800 42px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 22px; padding: 22px 100px; cursor: pointer; margin-top: 14px;
@@ -609,18 +613,71 @@
     later(step, 1000);
   }
 
+  // ----- Live video (Daily). Our own simple screen: them full-size, a small picture of
+  //       Rob & Rhonda, and one Hang up button - no other controls to press by mistake -----
+  var co = null;
+
+  function remoteCount() {
+    if (!co) return 0;
+    return Object.keys(co.participants()).filter(function (k) { return k !== 'local'; }).length;
+  }
+
+  function onTrack(ev) {
+    if (!ev || !ev.participant || !ev.track) return;
+    var local = ev.participant.local, stopped = ev.type === 'track-stopped';
+    if (ev.track.kind === 'video') {
+      var v = $(local ? 'vself' : 'vremote');
+      if (v) v.srcObject = stopped ? null : new MediaStream([ev.track]);
+      if (!local && !stopped && $('vwait')) $('vwait').hidden = true;
+    } else if (ev.track.kind === 'audio' && !local) {
+      var a = $('vaudio');
+      if (a) { a.srcObject = stopped ? null : new MediaStream([ev.track]); if (!stopped) a.play().catch(function () {}); }
+    }
+  }
+
+  function startVideo(c) {
+    if (!c.room || !window.Daily) return false;
+    try {
+      co = Daily.createCallObject();
+      co.on('track-started', onTrack).on('track-stopped', onTrack)
+        .on('participant-left', function () {
+          // If the other person has gone, end the call here too
+          later(function () { if (co && callUi && callUi.phase === 'live' && remoteCount() === 0) hangUp(); }, 8000);
+        })
+        .on('error', function (e) { console.error('Video error', e); });
+      co.join({ url: c.room, token: c.token }).catch(function (e) { console.error('Join failed', e); });
+      return true;
+    } catch (e) {
+      console.error('Video failed', e);
+      co = null;
+      return false;
+    }
+  }
+
+  function stopVideo() {
+    if (!co) return;
+    var x = co; co = null;
+    try { x.leave().then(function () { x.destroy(); }, function () { x.destroy(); }); } catch (e) {}
+  }
+
   function connected(c) {
     clearTimers();
     callUi = { id: c.id, name: c.name, color: c.color, phase: 'live' };
     var t0 = Date.now();
     overlay.hidden = false;
-    var video = c.room
-      ? '<div class="video"><iframe src="' + esc(c.room) + '" allow="camera; microphone; autoplay; display-capture"></iframe></div>'
-      : '<div class="video"><div class="face">' + avatar(c.name, c.color, 'big') + 'Video connects here once it\'s set up</div></div>';
-    overlay.innerHTML = video +
+    var hasVideo = !!(c.room && window.Daily);
+    overlay.innerHTML = '<div class="video">' +
+      (hasVideo ? '<video id="vremote" autoplay playsinline></video><video id="vself" autoplay playsinline muted></video><audio id="vaudio" autoplay></audio>' : '') +
+      '<div class="face" id="vwait">' + avatar(c.name, c.color, 'big') +
+      (hasVideo ? 'Connecting to ' + esc(c.name) + '…' : 'Video connects here once it\'s set up') + '</div></div>' +
       '<div class="callbar"><span>Talking with ' + esc(c.name) + ' · <span id="dur">0:00</span></span>' +
       '<button class="hangup" id="hangup">' + PHONE + 'Hang up</button></div>';
     $('hangup').onclick = hangUp;
+    if (hasVideo) {
+      startVideo(c);
+      // If the other person never shows up, give up after 2 minutes
+      later(function () { if (co && callUi && callUi.phase === 'live' && remoteCount() === 0) hangUp(); }, 120000);
+    }
     (function run() {
       var s = Math.floor((Date.now() - t0) / 1000), el = $('dur');
       if (el) { el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); later(run, 1000); }
@@ -635,6 +692,7 @@
   }
 
   function ended(text) {
+    stopVideo();
     clearTimers();
     if (callUi) callUi.phase = 'ended';
     overlay.hidden = false;
