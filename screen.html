@@ -38,7 +38,8 @@
   .time small { font-size: 38px; letter-spacing: 0; margin-left: 8px; font-weight: 800; }
   .day { font-size: 58px; font-weight: 800; line-height: 1.05; margin-top: 16px; }
   .part { font-size: 46px; font-weight: 700; line-height: 1.1; }
-  .date { font-size: 34px; font-weight: 700; margin-top: 12px; }
+  .date { font-size: 50px; font-weight: 800; line-height: 1.1; margin-top: 10px; }
+  .date .yr { font-size: 40px; font-weight: 700; }
   .offline { font-size: 26px; font-weight: 700; color: var(--s-end); margin-top: 8px; }
   .label { font-size: 28px; font-weight: 800; color: var(--s-ink); }
   .calls { display: grid; gap: 10px; margin-top: auto; }
@@ -125,7 +126,6 @@
       <div class="clock">
         <div class="time" id="time"></div>
         <div class="day" id="day"></div>
-        <div class="part" id="part"></div>
         <div class="date" id="date"></div>
         <div class="offline" id="offline" hidden>Reconnecting… showing the last saved schedule.</div>
       </div>
@@ -201,8 +201,7 @@
     var p = pacific();
     $('time').innerHTML = (p.h % 12 || 12) + ':' + String(p.m).padStart(2, '0') + '<small>' + (p.h < 12 ? 'AM' : 'PM') + '</small>';
     $('day').textContent = p.weekday;
-    $('part').textContent = partOf(p.h);
-    $('date').textContent = p.month + ' ' + p.day + ', ' + p.year;
+    $('date').innerHTML = esc(p.month + ' ' + p.day) + '<br><span class="yr">' + esc(p.year) + '</span>';
     screen.classList.toggle('night', p.h >= 20 || p.h < 6);
     if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); checkReminders(); renderMessages(); }
   }
