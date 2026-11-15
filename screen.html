@@ -92,6 +92,13 @@
   .hangup { margin-left: auto; font: 800 34px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 20px; padding: 20px 46px; cursor: pointer; display: flex; gap: 12px; align-items: center; }
   .hangup svg { width: 34px; height: 34px; }
   .cancel { font: 700 30px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 18px; padding: 16px 44px; cursor: pointer; margin-top: 10px; }
+  .remind { position: absolute; inset: 0; background: rgba(10, 15, 19, .55); display: grid; place-items: center; }
+  .remind .box { background: var(--s-panel); color: var(--s-ink); border-radius: 28px; padding: 44px 60px; max-width: 920px;
+    display: grid; gap: 22px; justify-items: center; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  .remind .kicker { font-size: 26px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--s-next-ink); }
+  .remind .rmsg { font-size: 54px; font-weight: 700; line-height: 1.2; }
+  .remind .rsub { font-size: 34px; color: var(--s-muted); line-height: 1.3; }
+  .remind .ok { font: 800 40px var(--font); background: var(--s-call); color: #fff; border: 0; border-radius: 20px; padding: 18px 96px; cursor: pointer; margin-top: 8px; }
   .setup { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; padding: 60px; text-align: center; background: var(--s-bg); }
   [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) { .ring { animation: none; } .screen { transition: none; } }
@@ -127,6 +134,7 @@
         <div id="msgs" style="display:grid;gap:14px"></div>
       </div>
     </div>
+    <div class="remind" id="remind" hidden></div>
     <div class="overlay" id="overlay" hidden></div>
     <div class="setup" id="setup" hidden></div>
   </div>
@@ -177,7 +185,7 @@
     $('part').textContent = partOf(p.h);
     $('date').textContent = p.month + ' ' + p.day + ', ' + p.year;
     screen.classList.toggle('night', p.h >= 20 || p.h < 6);
-    if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); }
+    if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); checkReminders(); }
   }
 
   // ----- Schedule -----
@@ -280,7 +288,122 @@
     data = d;
     renderContacts(); renderEvents(); renderMsgs();
     handleCall(d.call);
+    checkReminders();
   }
+
+  // ----- Spoken reminders -----
+  var REMIND_MIN = 15;              // minutes before an appointment
+  var REMIND_RIDE_MIN = 30;         // minutes before a ride pickup
+  var REPEAT_AFTER = 5 * 60000;     // say it once more if nobody taps OK
+  var QUIET_FROM = 22 * 60, QUIET_UNTIL = 6 * 60;   // silent 10 PM to 6 AM
+  var reminder = null, memReminded = {};
+
+  function reminderKey(i) { return data.day + '|' + i.s + '|' + i.title; }
+  function wasReminded(key) {
+    if (memReminded[key]) return true;
+    try { return !!JSON.parse(localStorage.getItem('rr_reminded') || '{}')[key]; } catch (e) { return false; }
+  }
+  function markReminded(key) {
+    memReminded[key] = true;
+    try {
+      var r = JSON.parse(localStorage.getItem('rr_reminded') || '{}');
+      Object.keys(r).forEach(function (k) { if (k.indexOf(data.day) !== 0) delete r[k]; });
+      r[key] = 1;
+      localStorage.setItem('rr_reminded', JSON.stringify(r));
+    } catch (e) {}
+  }
+
+  function whoName(i) { return i.who === 'rob' ? 'Rob' : i.who === 'rhonda' ? 'Rhonda' : i.who === 'both' ? 'Rob and Rhonda' : ''; }
+  function minutesText(n) { return n === 1 ? '1 minute' : n + ' minutes'; }
+  // "Eye doctor (Dr. Patel)" reads aloud as "eye doctor, Dr. Patel,"
+  function spoken(t) {
+    t = String(t).replace(/\s*\(([^)]*)\)/g, ', $1,').trim();
+    return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+  }
+
+  function reminderText(i, mins) {
+    var name = whoName(i), lead = name ? name + ', a reminder: ' : 'A reminder: ';
+    if (i.ride) {
+      var what = /^eskaton/i.test(i.title) ? 'the ' + i.title : spoken(i.title);
+      var detail = i.notes.filter(function (n) { return !/^Going to:/.test(n); })[0];
+      return lead + what + ' in ' + minutesText(mins) + '.' + (detail ? ' ' + detail : '');
+    }
+    var home = i.notes.some(function (n) { return /Comes to your apartment/.test(n); });
+    return lead + 'your ' + spoken(i.title) + ' is in ' + minutesText(mins) + '.' + (home ? ' They are coming to your apartment.' : '');
+  }
+
+  function speak(text) {
+    try {
+      // Fully Kiosk's own text-to-speech works without a tap; the browser's is the fallback
+      if (window.fully && typeof fully.textToSpeech === 'function') { fully.textToSpeech(text); return; }
+      if (window.speechSynthesis) {
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US'; u.rate = 0.9;
+        speechSynthesis.cancel(); speechSynthesis.speak(u);
+      }
+    } catch (e) { /* the banner still shows */ }
+  }
+
+  function softChime() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [[523, 0], [784, .4]].forEach(function (n) {
+        var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + n[1];
+        o.frequency.value = n[0]; o.type = 'sine';
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.22, t + .04); g.gain.exponentialRampToValueAtTime(.001, t + 1);
+        o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 1.1);
+      });
+    } catch (e) {}
+  }
+
+  function announce(i, mins) {
+    softChime();
+    setTimeout(function () { speak(reminderText(i, mins)); }, 1300);
+  }
+
+  function checkReminders() {
+    if (!data || !data.cal) return;
+    var now = pacific().mins;
+    if (reminder && now >= reminder.s + 20) hideReminder();   // tidy up 20 minutes after it starts
+    if (now >= QUIET_FROM || now < QUIET_UNTIL || callUi) return;
+    var due = data.cal.today.filter(function (i) {
+      if (i.allDay) return false;
+      var lead = i.ride ? REMIND_RIDE_MIN : REMIND_MIN;
+      return now >= i.s - lead && now < i.s && !wasReminded(reminderKey(i));
+    })[0];
+    if (due) showReminder(due, due.s - now);
+  }
+
+  function showReminder(i, mins) {
+    var key = reminderKey(i), name = whoName(i);
+    markReminded(key);
+    if (reminder) clearTimeout(reminder.repeat);
+    var detail = i.ride ? i.notes.filter(function (n) { return !/^Going to:/.test(n); })[0] : '';
+    $('remind').innerHTML = '<div class="box"><div class="kicker">Reminder</div>' +
+      '<div class="rmsg">' + (name ? '<span class="who ' + esc(i.who) + '">' + esc(name) + ':</span> ' : '') + esc(i.title) + '</div>' +
+      '<div class="rsub">At ' + esc(i.time) + (detail ? '<br>' + esc(detail) : '') + '</div>' +
+      '<button class="ok" id="remindOk">OK</button></div>';
+    $('remind').hidden = false;
+    $('remindOk').onclick = hideReminder;
+    reminder = {
+      key: key, s: i.s,
+      repeat: setTimeout(function () {
+        var left = i.s - pacific().mins;
+        if (reminder && reminder.key === key && !callUi && left > 0) announce(i, left);
+      }, REPEAT_AFTER)
+    };
+    announce(i, mins);
+  }
+
+  function hideReminder() {
+    if (reminder) clearTimeout(reminder.repeat);
+    reminder = null;
+    $('remind').hidden = true;
+    $('remind').innerHTML = '';
+  }
+
+  // Lets Eric preview a reminder remotely (from the browser console)
+  window.rrScreen = { showReminder: showReminder, reminderText: reminderText };
 
   function poll() {
     clearTimeout(pollTimer);
