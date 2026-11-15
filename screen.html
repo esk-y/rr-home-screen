@@ -16,64 +16,71 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0f13; }
   .fit { position: fixed; inset: 0; display: grid; place-items: center; }
   .screen {
-    --s-bg: #eef2f1; --s-panel: #ffffff; --s-ink: #141d24; --s-muted: #4d5b65; --s-line: #d5dcda;
+    /* Low-vision rules: nothing below 26px, nothing in regular weight, no pale gray text */
+    --s-bg: #eef2f1; --s-panel: #ffffff; --s-ink: #10181e; --s-muted: #2f3b44; --s-line: #c9d2cf; --s-done: #e7ecea;
     --s-call: #1d7446; --s-call-soft: #e3f2e9; --s-end: #b3261e; --s-next: #fff4d6; --s-next-ink: #7a4b00;
     --rob: #1d5aa6; --rhonda: #94306a; --both: #2c6a3a;
     --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", Verdana, "Segoe UI", sans-serif;
     position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0;
     background: var(--s-bg); color: var(--s-ink); font-family: var(--font);
-    display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
+    display: grid; grid-template-columns: 400px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
     transition: background .6s, color .6s; user-select: none; -webkit-user-select: none;
   }
   .screen.night {
-    --s-bg: #0a0f13; --s-panel: #121a20; --s-ink: #c7d1d8; --s-muted: #7f8d97; --s-line: #222d34;
+    --s-bg: #0a0f13; --s-panel: #121a20; --s-ink: #eef3f6; --s-muted: #c3cdd4; --s-line: #33404a; --s-done: #1b252c;
     --s-call: #3f9a67; --s-call-soft: #13241b; --s-next: #2a2210; --s-next-ink: #e2b866;
     --rob: #7fa9e0; --rhonda: #d68bb7; --both: #86c592;
   }
   .col { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
   .card { background: var(--s-panel); border-radius: 18px; padding: 20px 22px; }
   .clock { display: grid; gap: 2px; padding: 6px 4px 0; }
-  .time { font-size: 112px; font-weight: 700; line-height: 1; letter-spacing: -3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .time small { font-size: 34px; letter-spacing: 0; margin-left: 8px; font-weight: 600; }
-  .day { font-size: 46px; font-weight: 700; line-height: 1.1; margin-top: 14px; }
-  .part { font-size: 40px; font-weight: 600; color: var(--s-muted); line-height: 1.1; }
-  .date { font-size: 28px; color: var(--s-muted); margin-top: 10px; }
-  .offline { font-size: 18px; color: var(--s-muted); margin-top: 8px; }
-  .label { font-size: 19px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--s-muted); }
+  .time { font-size: 116px; font-weight: 800; line-height: 1; letter-spacing: -3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .time small { font-size: 38px; letter-spacing: 0; margin-left: 8px; font-weight: 800; }
+  .day { font-size: 58px; font-weight: 800; line-height: 1.05; margin-top: 16px; }
+  .part { font-size: 46px; font-weight: 700; line-height: 1.1; }
+  .date { font-size: 34px; font-weight: 700; margin-top: 12px; }
+  .offline { font-size: 26px; font-weight: 700; color: var(--s-end); margin-top: 8px; }
+  .label { font-size: 28px; font-weight: 800; color: var(--s-ink); }
   .calls { display: grid; gap: 10px; margin-top: auto; }
-  .callbtn { display: flex; align-items: center; gap: 16px; padding: 9px 18px 9px 10px; border-radius: 18px; cursor: pointer;
-    background: var(--s-call-soft); border: 2px solid var(--s-call); color: var(--s-ink); font: 700 30px var(--font); text-align: left; }
-  .callbtn .cam { margin-left: auto; width: 38px; height: 38px; color: var(--s-call); }
-  .avatar { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 28px; color: #fff; }
+  .callbtn { display: flex; align-items: center; gap: 16px; padding: 8px 18px 8px 10px; border-radius: 18px; cursor: pointer;
+    background: var(--s-call-soft); border: 3px solid var(--s-call); color: var(--s-ink); font: 800 34px var(--font); text-align: left; }
+  .callbtn .cam { margin-left: auto; width: 42px; height: 42px; color: var(--s-call); }
+  .avatar { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 30px; color: #fff; }
 
-  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; padding: 22px 26px; }
-  .today h2 { margin: 0 0 2px; font-size: 38px; }
+  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; padding: 22px 26px; }
+  .today h2 { margin: 0; font-size: 40px; font-weight: 800; }
   .events { flex: 1; min-height: 0; overflow: hidden; display: grid; align-content: start; gap: 4px; }
-  .allday { font-size: 27px; padding: 2px 14px 6px; }
-  .ev { display: grid; grid-template-columns: 158px minmax(0, 1fr); gap: 18px; padding: 12px 14px; border-radius: 14px; }
-  .ev .t { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .ev .what { font-size: 32px; font-weight: 600; line-height: 1.22; }
-  .ev .who { font-weight: 800; }
+  .allday { font-size: 30px; font-weight: 700; }
+  .who { font-weight: 800; }
   .who.rob { color: var(--rob); } .who.rhonda { color: var(--rhonda); } .who.both { color: var(--both); }
-  .ev .n { font-size: 23px; color: var(--s-muted); line-height: 1.35; margin-top: 4px; }
-  .ev.done { opacity: .42; }
-  .ev.done .t::after { content: " ✓"; }
-  .ev.next { background: var(--s-next); }
-  .pill { display: inline-block; font-size: 20px; font-weight: 700; color: var(--s-next-ink); margin-bottom: 4px; letter-spacing: .02em; }
-  .quiet { font-size: 30px; color: var(--s-muted); padding: 10px 14px; }
-  .more { font-size: 24px; color: var(--s-muted); padding: 4px 14px; }
-  .tomorrow { padding-top: 12px; border-top: 2px solid var(--s-line); display: grid; gap: 2px; }
-  .tomorrow .label { padding-left: 14px; }
-  .tomorrow .ev { padding-block: 6px; }
-  .tomorrow .ev .t, .tomorrow .ev .what { font-size: 26px; }
-  .tomorrow .ev .n { font-size: 20px; }
-  .tomorrow .quiet { font-size: 24px; }
+
+  /* The one thing to look at: what's next */
+  .nextcard { background: var(--s-next); border: 3px solid var(--s-next-ink); border-radius: 18px; padding: 12px 22px 14px; display: grid; gap: 2px; margin-bottom: 6px; }
+  .nextcard .nk { font-size: 30px; font-weight: 800; color: var(--s-next-ink); }
+  .nextcard .nt { font-size: 46px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .nextcard .nw { font-size: 44px; font-weight: 800; line-height: 1.15; }
+  .nextcard .nn { font-size: 30px; font-weight: 700; line-height: 1.25; margin-top: 2px; }
+
+  /* Other items: time and title only; details show when an item becomes Next */
+  .row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 16px; align-items: baseline; padding: 4px 4px; }
+  .row .t { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row .what { font-size: 34px; font-weight: 700; line-height: 1.2; }
+  .row.done { background: var(--s-done); border-radius: 14px; padding: 8px 14px; }
+  .row.done .t, .row.done .what { font-size: 28px; }
+  .row.done .tag { font-weight: 800; color: var(--s-call); }
+  .sub { font-size: 28px; font-weight: 800; }
+  .quiet { font-size: 34px; font-weight: 700; padding: 6px 4px; }
+  .more { font-size: 28px; font-weight: 700; padding: 0 4px; }
+  .tomorrow { padding-top: 12px; border-top: 3px solid var(--s-line); display: grid; gap: 2px; }
+  .tomorrow .row .t { font-size: 30px; }
+  .tomorrow .row .what { font-size: 30px; }
+  .tomorrow .quiet { font-size: 30px; }
 
   /* Messages: a card pops over the calendar, then shrinks to a strip until answered */
   .mstrip { display: flex; align-items: center; gap: 16px; width: 100%; padding: 10px 18px 10px 10px; border-radius: 16px; cursor: pointer; text-align: left;
-    background: var(--s-call-soft); border: 2px solid var(--s-call); color: var(--s-ink); font: 700 28px var(--font); }
+    background: var(--s-call-soft); border: 3px solid var(--s-call); color: var(--s-ink); font: 800 32px var(--font); }
   .mstrip .avatar { width: 52px; height: 52px; font-size: 24px; }
-  .mstrip .go { margin-left: auto; font-size: 22px; color: var(--s-call); white-space: nowrap; }
+  .mstrip .go { margin-left: auto; font-size: 28px; color: var(--s-call); white-space: nowrap; }
   .mcard { width: 860px; max-width: 860px; }
   .mcard .from { display: flex; align-items: center; gap: 16px; font-size: 32px; font-weight: 800; }
   .mcard .body { font-size: 46px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
@@ -82,7 +89,7 @@
     border: 0; color: #fff; background: var(--s-call); }
   .reply.callme { background: var(--rob); }
   .reply svg { width: 36px; height: 36px; }
-  .mcard .later { font-size: 22px; color: var(--s-muted); }
+  .mcard .later { font-size: 28px; font-weight: 700; color: var(--s-muted); }
   .mcard .sentmsg { font-size: 44px; font-weight: 700; color: var(--s-call); }
 
   .overlay { position: absolute; inset: 0; background: var(--s-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
@@ -201,11 +208,20 @@
   }
 
   // ----- Schedule -----
-  function evHtml(ev, cls, pill) {
-    return '<div class="ev ' + cls + '"><div class="t">' + esc(ev.time) + '</div><div>' +
-      (pill ? '<div class="pill">' + pill + '</div>' : '') +
-      '<div class="what">' + (ev.who ? '<span class="who ' + esc(ev.who) + '">' + esc(ev.whoLabel) + ':</span> ' : '') + esc(ev.title) + '</div>' +
-      (ev.notes.length ? '<div class="n">' + ev.notes.map(esc).join('<br>') + '</div>' : '') + '</div></div>';
+  function whoTitle(ev) {
+    return (ev.who ? '<span class="who ' + esc(ev.who) + '">' + esc(ev.whoLabel) + ':</span> ' : '') + esc(ev.title);
+  }
+  // A plain row: time and title only
+  function rowHtml(ev, cls) {
+    return '<div class="row ' + (cls || '') + '"><div class="t">' + (ev.allDay ? 'All day' : esc(ev.time)) + '</div>' +
+      '<div class="what">' + (cls === 'done' ? '<span class="tag">✓ Done:</span> ' : '') + whoTitle(ev) + '</div></div>';
+  }
+  // The big card for what's happening now or next, with its details
+  function nextHtml(ev, kicker) {
+    return '<div class="nextcard"><div class="nk">' + kicker + '</div>' +
+      '<div class="nt">' + esc(ev.time) + '</div>' +
+      '<div class="nw">' + whoTitle(ev) + '</div>' +
+      (ev.notes.length ? '<div class="nn">' + ev.notes.slice(0, 3).map(esc).join('<br>') + '</div>' : '') + '</div>';
   }
 
   function waitText(mins) {
@@ -220,40 +236,34 @@
     var allDay = cal.today.filter(function (i) { return i.allDay; });
     var timed = cal.today.filter(function (i) { return !i.allDay; });
 
-    $('allday').innerHTML = allDay.length ? '<div class="allday"><b>All day:</b> ' + allDay.map(function (i) {
-      return (i.who ? '<span class="who ' + esc(i.who) + '">' + esc(i.whoLabel) + ':</span> ' : '') + esc(i.title);
-    }).join(' · ') + '</div>' : '';
+    $('allday').innerHTML = allDay.length ? '<div class="allday">All day: ' + allDay.map(whoTitle).join(' · ') + '</div>' : '';
 
-    // The most recent finished item, then what's still to come
     var done = timed.filter(function (i) { return i.e <= now; });
-    var rest = timed.filter(function (i) { return i.e > now; });
+    var rest = timed.filter(function (i) { return i.e > now; });   // [0] is now or next
+    var later = rest.slice(1);
 
+    // Finished item (if room), the big Next card, then a few later items by time and title
     function draw(keepDone, n) {
-      var shown = (keepDone ? done.slice(-1) : []).concat(rest.slice(0, n));
-      var html = '', nextFound = false;
-      shown.forEach(function (ev) {
-        if (ev.e <= now) html += evHtml(ev, 'done');
-        else if (ev.s <= now) html += evHtml(ev, 'next', 'Happening now');
-        else if (!nextFound) { nextFound = true; html += evHtml(ev, 'next', 'Next, ' + waitText(ev.s - now)); }
-        else html += evHtml(ev, '');
-      });
-      if (rest.length > n) html += '<div class="more">and ' + (rest.length - n) + ' more later today</div>';
-      if (!timed.length && !allDay.length) html = '<div class="quiet">Nothing scheduled today. Enjoy a quiet day.</div>';
-      else if (!rest.length && timed.length) html += '<div class="quiet">That\'s everything for today.</div>';
+      if (!timed.length) return allDay.length ? '' : '<div class="quiet">Nothing scheduled today. Enjoy a quiet day.</div>';
+      var html = keepDone && done.length ? rowHtml(done[done.length - 1], 'done') : '';
+      if (!rest.length) return html + '<div class="quiet">That\'s everything for today.</div>';
+      var first = rest[0];
+      html += nextHtml(first, first.s <= now ? 'Happening now' : 'Next, ' + waitText(first.s - now));
+      if (n > 0) html += '<div class="sub">Later today</div>' + later.slice(0, n).map(function (ev) { return rowHtml(ev); }).join('');
+      if (later.length > n) html += '<div class="more">and ' + (later.length - n) + ' more later today</div>';
       return html;
     }
 
     $('tomorrow').innerHTML = '<div class="label">Tomorrow, ' + esc(cal.tomorrowName) + '</div>' +
-      (cal.tomorrow.length ? cal.tomorrow.slice(0, 3).map(function (ev) {
-        return ev.allDay ? '<div class="ev"><div class="t">All day</div><div class="what">' + (ev.who ? '<span class="who ' + esc(ev.who) + '">' + esc(ev.whoLabel) + ':</span> ' : '') + esc(ev.title) + '</div></div>' : evHtml(ev, '');
-      }).join('') : '<div class="quiet">Nothing scheduled.</div>');
+      (cal.tomorrow.length ? cal.tomorrow.slice(0, 2).map(function (ev) { return rowHtml(ev); }).join('')
+        : '<div class="quiet">Nothing scheduled.</div>');
 
-    // Show as many items as fit: drop the finished one first, then the latest ones
-    var box = $('events'), keepDone = true, n = Math.min(6, rest.length);
+    // Show as much as fits: drop the finished item first, then later items
+    var box = $('events'), keepDone = true, n = Math.min(4, later.length);
     box.innerHTML = draw(keepDone, n);
     while (box.scrollHeight > box.clientHeight + 2) {
       if (keepDone && done.length) keepDone = false;
-      else if (n > 1) n--;
+      else if (n > 0) n--;
       else break;
       box.innerHTML = draw(keepDone, n);
     }
@@ -371,7 +381,26 @@
   function save(d) { try { localStorage.setItem('rr_screen', JSON.stringify(d)); } catch (e) {} }
   function restore() { try { return JSON.parse(localStorage.getItem('rr_screen') || 'null'); } catch (e) { return null; } }
 
+  // ?demo=1 swaps in a busy sample day (for reviewing the layout); everything else stays live
+  function demoCal(tomorrowName) {
+    var n = pacific().mins, at = function (m) { var h = Math.floor(((m % 1440) + 1440) % 1440 / 60), mm = ((m % 60) + 60) % 60; return (h % 12 || 12) + ':' + String(mm).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM'); };
+    var it = function (s, len, who, title, notes, ride) { return { allDay: false, ride: !!ride, s: s, e: s + len, time: at(s), who: who, whoLabel: who === 'both' ? 'Both of you' : who.charAt(0).toUpperCase() + who.slice(1), title: title, notes: notes || [] }; };
+    return {
+      today: [
+        it(n - 120, 60, 'both', 'Exercise class', ['Where: Activity room.']),
+        it(n + 25, 15, 'rob', 'Eskaton van picks you up', ['Front entrance.', 'Going to: Eye doctor (Dr. Patel).'], true),
+        it(n + 70, 90, 'rob', 'Eye doctor (Dr. Patel)', ['Where: Eye clinic, Grass Valley.', 'Bring: glasses, insurance card.', 'Done about 3:30 PM.']),
+        it(n + 180, 30, 'both', 'Video call with Jen', []),
+        it(n + 240, 60, 'rhonda', 'Physical therapy', ['Comes to your apartment. Stay home.']),
+        it(n + 330, 90, 'both', 'Movie night', ['Where: Main lounge.'])
+      ],
+      tomorrowName: tomorrowName,
+      tomorrow: [it(600, 60, 'rhonda', 'Haircut', []), it(840, 60, 'rob', 'Dentist', []), it(900, 30, 'both', 'Call with Kiersten', [])]
+    };
+  }
+
   function apply(d) {
+    if (qs.get('demo')) d.cal = demoCal(d.cal ? d.cal.tomorrowName : 'Monday');
     data = d;
     renderContacts(); renderEvents();
     handleCall(d.call);
@@ -450,7 +479,7 @@
   }
 
   function checkReminders() {
-    if (!data || !data.cal) return;
+    if (!data || !data.cal || qs.get('demo')) return;   // no spoken reminders for sample appointments
     var now = pacific().mins;
     if (reminder && now >= reminder.s + 20) hideReminder();   // tidy up 20 minutes after it starts
     if (now >= QUIET_FROM || now < QUIET_UNTIL || callUi) return;
@@ -598,6 +627,8 @@
 
   // ----- Start -----
   tick(); setInterval(tick, 1000);
+  // Re-fit the schedule once the large font has loaded (it changes text sizes)
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { renderEvents(); });
   if (!KEY || !API) {
     $('setup').hidden = false;
     $('setup').textContent = 'This screen needs its setup link. Eric can fix this remotely.';
