@@ -361,7 +361,8 @@
     var r = b.getAttribute('data-r');
     replying[m.id] = r;
     try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (err) {}
-    api({ a: 'reply', id: m.id, r: r }).catch(function () { delete replying[m.id]; msgUiKey = ''; renderMessages(); });
+    api({ a: 'reply', id: m.id, r: r }).then(function (j) { sendAlert(j.alert); })
+      .catch(function () { delete replying[m.id]; msgUiKey = ''; renderMessages(); });
     // Brief confirmation, then the next message (if any)
     $('msgcard').innerHTML = '<div class="box mcard"><div class="sentmsg">✓ ' + esc(m.from) + ' will get your reply: ' + esc(r) + '</div></div>';
     msgConfirmUntil = Date.now() + 2500;
@@ -408,11 +409,12 @@
     };
   }
 
-  function apply(d) {
+  // asked: when this data was requested (so an old answer can't end a brand-new call)
+  function apply(d, asked) {
     if (qs.get('demo')) d.cal = demoCal(d.cal ? d.cal.tomorrowName : 'Monday');
     data = d;
     renderContacts(); renderEvents();
-    handleCall(d.call);
+    handleCall(d.call, asked);
     checkReminders();
     renderMessages();
   }
@@ -534,9 +536,10 @@
 
   function poll() {
     clearTimeout(pollTimer);
+    var asked = Date.now();
     api({ a: 'screen' }).then(function (d) {
       failures = 0; $('offline').hidden = true;
-      save(d); apply(d);
+      save(d); apply(d, asked);
     }).catch(function () {
       failures++;
       if (failures >= 3) $('offline').hidden = false;
@@ -561,15 +564,31 @@
     } catch (e) { /* sound is optional */ }
   }
 
-  function handleCall(c) {
+  function handleCall(c, asked) {
     if (c && c.dir === 'in' && c.state === 'ringing' && (!callUi || callUi.id !== c.id)) return incoming(c);
     if (c && callUi && callUi.id === c.id && c.state === 'live' && callUi.phase !== 'live' && callUi.phase !== 'countdown') return connected(c);
-    if (!c && callUi && callUi.phase !== 'ended' && callUi.phase !== 'starting') return ended(callUi.phase === 'calling' ? 'No answer' : 'Call ended');
+    // The call is gone on the backend - but only trust answers to questions asked after the call existed
+    if (!c && callUi && callUi.id && callUi.since && asked && asked > callUi.since &&
+        callUi.phase !== 'ended' && callUi.phase !== 'starting') {
+      return ended(callUi.phase === 'calling' ? 'No answer' : 'Call ended');
+    }
+  }
+
+  // Phone alert (ntfy), sent from the tablet's own internet connection
+  function sendAlert(alert, tries) {
+    if (!alert) return;
+    tries = tries || 0;
+    fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify(alert) })
+      .then(function (r) { if (!r.ok) throw new Error('ntfy ' + r.status); })
+      .catch(function (e) {
+        console.error('Alert failed', e);
+        if (tries < 2) setTimeout(function () { sendAlert(alert, tries + 1); }, 2000);
+      });
   }
 
   function incoming(c) {
     clearTimers(); chime();
-    callUi = { id: c.id, name: c.name, color: c.color, phase: 'countdown' };
+    callUi = { id: c.id, name: c.name, color: c.color, phase: 'countdown', since: Date.now() };
     var left = COUNTDOWN;
     function draw() {
       overlay.hidden = false;
@@ -606,8 +625,13 @@
       overlay.innerHTML = '<div class="ring">' + avatar(f.name, f.color, 'big') + '</div><h3>Calling ' + esc(f.name) + '…</h3><p>Waiting for ' + esc(f.name) + ' to answer.</p>' +
         '<button class="cancel" id="cancel">Cancel</button>';
       $('cancel').onclick = hangUp;
-      api({ a: 'call', to: to }).then(function (j) { callUi.id = j.call.id; poll(); })
-        .catch(function () { ended('Could not call right now'); });
+      api({ a: 'call', to: to }).then(function (j) {
+        // Cancelled while the call was being set up: end it quietly, no alert
+        if (!callUi || callUi.phase !== 'calling') { api({ a: 'endcall', id: j.call.id }).catch(function () {}); return; }
+        callUi.id = j.call.id; callUi.since = Date.now();
+        sendAlert(j.alert);
+        poll();
+      }).catch(function () { ended('Could not call right now'); });
     }
     draw();
     later(step, 1000);
@@ -662,7 +686,7 @@
 
   function connected(c) {
     clearTimers();
-    callUi = { id: c.id, name: c.name, color: c.color, phase: 'live' };
+    callUi = { id: c.id, name: c.name, color: c.color, phase: 'live', since: Date.now() };
     var t0 = Date.now();
     overlay.hidden = false;
     var hasVideo = !!(c.room && window.Daily);
