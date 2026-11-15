@@ -42,10 +42,15 @@
   .date .yr { font-size: 40px; font-weight: 700; }
   .offline { font-size: 26px; font-weight: 700; color: var(--s-end); margin-top: 8px; }
   .label { font-size: 28px; font-weight: 800; color: var(--s-ink); }
-  .calls { display: grid; gap: 10px; margin-top: auto; }
-  .callbtn { display: flex; align-items: center; gap: 16px; padding: 8px 18px 8px 10px; border-radius: 18px; cursor: pointer;
-    background: var(--s-call-soft); border: 3px solid var(--s-call); color: var(--s-ink); font: 800 34px var(--font); text-align: left; }
-  .callbtn .cam { margin-left: auto; width: 42px; height: 42px; color: var(--s-call); }
+  /* Call buttons: one big solid button per person, in that person's color, well spaced */
+  .calls { display: grid; gap: 12px; margin-top: auto; }
+  .callbtn { --c: #2f6f9f; display: flex; align-items: center; gap: 20px; width: 100%; height: 108px; padding: 0 24px 0 18px;
+    border-radius: 24px; border: 0; cursor: pointer; text-align: left; background: var(--c); color: #fff; font: 800 42px var(--font);
+    box-shadow: 0 5px 0 rgba(0, 0, 0, .28); -webkit-tap-highlight-color: transparent; }
+  .callbtn:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0, 0, 0, .28); filter: brightness(.88); }
+  .callbtn .ic { width: 74px; height: 74px; border-radius: 50%; background: #fff; color: var(--c); display: grid; place-items: center; flex: none; }
+  .callbtn .ic svg { width: 46px; height: 46px; }
+  .screen.night .callbtn { filter: brightness(.8); }
   .avatar { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 30px; color: #fff; }
 
   .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; padding: 22px 26px; }
@@ -106,7 +111,8 @@
     background: rgba(0,0,0,.55); color: #fff; font-size: 30px; font-weight: 600; }
   .hangup { margin-left: auto; font: 800 34px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 20px; padding: 20px 46px; cursor: pointer; display: flex; gap: 12px; align-items: center; }
   .hangup svg { width: 34px; height: 34px; }
-  .cancel { font: 700 30px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 18px; padding: 16px 44px; cursor: pointer; margin-top: 10px; }
+  .cancel { font: 800 42px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 22px; padding: 22px 100px; cursor: pointer; margin-top: 14px;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, .28); }
   .remind { position: absolute; inset: 0; background: rgba(10, 15, 19, .55); display: grid; place-items: center; }
   .remind .box { background: var(--s-panel); color: var(--s-ink); border-radius: 28px; padding: 44px 60px; max-width: 920px;
     display: grid; gap: 22px; justify-items: center; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
@@ -130,8 +136,8 @@
         <div class="offline" id="offline" hidden>Reconnecting… showing the last saved schedule.</div>
       </div>
       <div class="calls">
-        <div class="label">Video call</div>
-        <div id="contacts" style="display:grid;gap:10px"></div>
+        <div class="label">Video Call Buttons</div>
+        <div id="contacts" style="display:grid;gap:18px"></div>
       </div>
     </div>
     <div class="col">
@@ -280,7 +286,8 @@
     if (k === contactsKey) return;
     contactsKey = k;
     $('contacts').innerHTML = data.family.map(function (f) {
-      return '<button class="callbtn" data-to="' + esc(f.id) + '">' + avatar(f.name, f.color) + esc(f.name) + CAM + '</button>';
+      return '<button class="callbtn" data-to="' + esc(f.id) + '" style="--c:' + esc(f.color) + '">' +
+        '<span class="ic">' + CAM + '</span>Call ' + esc(f.name) + '</button>';
     }).join('');
   }
 
@@ -554,7 +561,7 @@
   function handleCall(c) {
     if (c && c.dir === 'in' && c.state === 'ringing' && (!callUi || callUi.id !== c.id)) return incoming(c);
     if (c && callUi && callUi.id === c.id && c.state === 'live' && callUi.phase !== 'live' && callUi.phase !== 'countdown') return connected(c);
-    if (!c && callUi && callUi.phase !== 'ended') return ended(callUi.phase === 'calling' ? 'No answer' : 'Call ended');
+    if (!c && callUi && callUi.phase !== 'ended' && callUi.phase !== 'starting') return ended(callUi.phase === 'calling' ? 'No answer' : 'Call ended');
   }
 
   function incoming(c) {
@@ -578,13 +585,29 @@
     var f = data.family.filter(function (x) { return x.id === to; })[0];
     if (!f || callUi) return;
     clearTimers();
-    callUi = { id: null, name: f.name, color: f.color, phase: 'calling' };
-    overlay.hidden = false;
-    overlay.innerHTML = '<div class="ring">' + avatar(f.name, f.color, 'big') + '</div><h3>Calling ' + esc(f.name) + '…</h3><p>Waiting for ' + esc(f.name) + ' to answer.</p>' +
-      '<button class="cancel" id="cancel">Cancel</button>';
-    $('cancel').onclick = hangUp;
-    api({ a: 'call', to: to }).then(function (j) { callUi.id = j.call.id; poll(); })
-      .catch(function () { ended('Could not call right now'); });
+    // A 3-second pause with a big Cancel, so a mistaken tap never rings anyone
+    callUi = { id: null, name: f.name, color: f.color, phase: 'starting' };
+    var left = 3;
+    function draw() {
+      overlay.hidden = false;
+      overlay.innerHTML = avatar(f.name, f.color, 'big') + '<h3>Calling ' + esc(f.name) + ' in ' + left + '…</h3>' +
+        '<p>Tap Cancel to stop.</p><button class="cancel" id="cancel">Cancel</button>';
+      $('cancel').onclick = function () {
+        clearTimers(); callUi = null; overlay.hidden = true; overlay.innerHTML = ''; renderMessages();
+      };
+    }
+    function step() {
+      left--;
+      if (left > 0) { draw(); later(step, 1000); return; }
+      callUi.phase = 'calling';
+      overlay.innerHTML = '<div class="ring">' + avatar(f.name, f.color, 'big') + '</div><h3>Calling ' + esc(f.name) + '…</h3><p>Waiting for ' + esc(f.name) + ' to answer.</p>' +
+        '<button class="cancel" id="cancel">Cancel</button>';
+      $('cancel').onclick = hangUp;
+      api({ a: 'call', to: to }).then(function (j) { callUi.id = j.call.id; poll(); })
+        .catch(function () { ended('Could not call right now'); });
+    }
+    draw();
+    later(step, 1000);
   }
 
   function connected(c) {
