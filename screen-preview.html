@@ -659,29 +659,39 @@
     }
   }
 
+  function videoProblem() {
+    var w = $('vwait');
+    if (w) { w.hidden = false; w.lastChild.textContent = 'Video didn\'t connect. Tap Hang up and try again.'; }
+  }
+
+  // Daily allows only one call at a time, so finish closing any earlier one first
   function startVideo(c) {
-    if (!c.room || !window.Daily) return false;
-    try {
-      co = Daily.createCallObject();
-      co.on('track-started', onTrack).on('track-stopped', onTrack)
-        .on('participant-left', function () {
-          // If the other person has gone, end the call here too
-          later(function () { if (co && callUi && callUi.phase === 'live' && remoteCount() === 0) hangUp(); }, 8000);
-        })
-        .on('error', function (e) { console.error('Video error', e); });
-      co.join({ url: c.room, token: c.token }).catch(function (e) { console.error('Join failed', e); });
-      return true;
-    } catch (e) {
-      console.error('Video failed', e);
-      co = null;
-      return false;
-    }
+    if (!c.room || !window.Daily) return;
+    var callId = c.id;
+    var old = Daily.getCallInstance && Daily.getCallInstance();
+    Promise.resolve(old ? old.destroy() : null).catch(function () {}).then(function () {
+      if (!callUi || callUi.id !== callId || callUi.phase !== 'live') return;   // call already over
+      try {
+        co = Daily.createCallObject();
+        co.on('track-started', onTrack).on('track-stopped', onTrack)
+          .on('participant-left', function () {
+            // If the other person has gone, end the call here too
+            later(function () { if (callUi && callUi.phase === 'live' && remoteCount() === 0) hangUp(); }, 8000);
+          })
+          .on('error', function (e) { console.error('Video error', e); videoProblem(); });
+        co.join({ url: c.room, token: c.token }).catch(function (e) { console.error('Join failed', e); videoProblem(); });
+      } catch (e) {
+        console.error('Video failed', e);
+        co = null;
+        videoProblem();
+      }
+    });
   }
 
   function stopVideo() {
     if (!co) return;
     var x = co; co = null;
-    try { x.leave().then(function () { x.destroy(); }, function () { x.destroy(); }); } catch (e) {}
+    try { x.destroy().catch(function () {}); } catch (e) {}
   }
 
   function connected(c) {
@@ -699,8 +709,8 @@
     $('hangup').onclick = hangUp;
     if (hasVideo) {
       startVideo(c);
-      // If the other person never shows up, give up after 2 minutes
-      later(function () { if (co && callUi && callUi.phase === 'live' && remoteCount() === 0) hangUp(); }, 120000);
+      // If the other person never shows up (or video never starts), give up after 2 minutes
+      later(function () { if (callUi && callUi.phase === 'live' && remoteCount() === 0) hangUp(); }, 120000);
     }
     (function run() {
       var s = Math.floor((Date.now() - t0) / 1000), el = $('dur');
