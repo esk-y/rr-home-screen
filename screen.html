@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rob &amp; Rhonda's Home Screen</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&display=swap">
+<!--
+  Rob & Rhonda's home screen (Phase 2) - the page the tablet shows all day.
+  Open it as:  screen.html?k=TABLET_KEY            (uses the API address below)
+          or:  screen.html?k=TABLET_KEY&api=URL    (to point at a different deployment)
+  It asks the Apps Script web app for the schedule, messages and calls every few seconds.
+-->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0f13; }
+  .fit { position: fixed; inset: 0; display: grid; place-items: center; }
+  .screen {
+    --s-bg: #eef2f1; --s-panel: #ffffff; --s-ink: #141d24; --s-muted: #4d5b65; --s-line: #d5dcda;
+    --s-call: #1d7446; --s-call-soft: #e3f2e9; --s-end: #b3261e; --s-next: #fff4d6; --s-next-ink: #7a4b00;
+    --rob: #1d5aa6; --rhonda: #94306a; --both: #2c6a3a;
+    --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", Verdana, "Segoe UI", sans-serif;
+    position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0;
+    background: var(--s-bg); color: var(--s-ink); font-family: var(--font);
+    display: grid; grid-template-columns: 400px minmax(0, 1fr) 340px; gap: 22px; padding: 26px; box-sizing: border-box;
+    transition: background .6s, color .6s; user-select: none; -webkit-user-select: none;
+  }
+  .screen.night {
+    --s-bg: #0a0f13; --s-panel: #121a20; --s-ink: #c7d1d8; --s-muted: #7f8d97; --s-line: #222d34;
+    --s-call: #3f9a67; --s-call-soft: #13241b; --s-next: #2a2210; --s-next-ink: #e2b866;
+    --rob: #7fa9e0; --rhonda: #d68bb7; --both: #86c592;
+  }
+  .col { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+  .card { background: var(--s-panel); border-radius: 18px; padding: 20px 22px; }
+  .clock { display: grid; gap: 2px; padding: 6px 4px 0; }
+  .time { font-size: 112px; font-weight: 700; line-height: 1; letter-spacing: -3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .time small { font-size: 34px; letter-spacing: 0; margin-left: 8px; font-weight: 600; }
+  .day { font-size: 46px; font-weight: 700; line-height: 1.1; margin-top: 14px; }
+  .part { font-size: 40px; font-weight: 600; color: var(--s-muted); line-height: 1.1; }
+  .date { font-size: 28px; color: var(--s-muted); margin-top: 10px; }
+  .offline { font-size: 18px; color: var(--s-muted); margin-top: 8px; }
+  .label { font-size: 19px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--s-muted); }
+  .calls { display: grid; gap: 10px; margin-top: auto; }
+  .callbtn { display: flex; align-items: center; gap: 16px; padding: 9px 18px 9px 10px; border-radius: 18px; cursor: pointer;
+    background: var(--s-call-soft); border: 2px solid var(--s-call); color: var(--s-ink); font: 700 30px var(--font); text-align: left; }
+  .callbtn .cam { margin-left: auto; width: 38px; height: 38px; color: var(--s-call); }
+  .avatar { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 28px; color: #fff; }
+
+  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .today h2, .msgs h2 { margin: 0 0 6px; font-size: 32px; }
+  .allday { font-size: 23px; padding: 4px 12px 8px; }
+  .ev { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 14px; padding: 11px 12px; border-radius: 12px; }
+  .ev .t { font-size: 25px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ev .what { font-size: 25px; font-weight: 600; line-height: 1.25; }
+  .ev .who { font-weight: 800; }
+  .who.rob { color: var(--rob); } .who.rhonda { color: var(--rhonda); } .who.both { color: var(--both); }
+  .ev .n { font-size: 19px; color: var(--s-muted); line-height: 1.35; margin-top: 3px; }
+  .ev.done { opacity: .42; }
+  .ev.done .t::after { content: " ✓"; }
+  .ev.next { background: var(--s-next); }
+  .pill { display: inline-block; font-size: 17px; font-weight: 700; color: var(--s-next-ink); margin-bottom: 4px; letter-spacing: .02em; }
+  .quiet { font-size: 25px; color: var(--s-muted); padding: 8px 12px; }
+  .more { font-size: 20px; color: var(--s-muted); padding: 2px 12px; }
+  .tomorrow { margin-top: auto; padding-top: 12px; border-top: 2px solid var(--s-line); display: grid; gap: 4px; }
+  .tomorrow .ev { padding-block: 6px; }
+  .tomorrow .ev .t, .tomorrow .ev .what { font-size: 22px; }
+
+  .msgs { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .msg { display: grid; gap: 10px; padding-bottom: 14px; border-bottom: 2px solid var(--s-line); }
+  .msg:last-child { border-bottom: 0; }
+  .msg .from { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 700; }
+  .msg .from .avatar { width: 48px; height: 48px; font-size: 22px; }
+  .msg .from span { font-weight: 400; font-size: 19px; color: var(--s-muted); }
+  .msg .body { font-size: 25px; line-height: 1.3; overflow-wrap: anywhere; }
+  .replies { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .reply { font: 700 22px var(--font); padding: 12px 8px; border-radius: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--s-bg); color: var(--s-ink); border: 2px solid var(--s-line); }
+  .reply svg { width: 26px; height: 26px; }
+  .sent { font-size: 21px; font-weight: 600; color: var(--s-call); }
+
+  .overlay { position: absolute; inset: 0; background: var(--s-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; }
+  .overlay .big { width: 200px; height: 200px; font-size: 92px; }
+  .overlay h3 { margin: 0; font-size: 62px; }
+  .overlay p { margin: 0; font-size: 32px; color: var(--s-muted); }
+  .ring { animation: ring 1.2s ease-in-out infinite; }
+  @keyframes ring { 50% { transform: scale(1.06); } }
+  .video { position: absolute; inset: 0; background: radial-gradient(circle at 50% 40%, #3a3f4c, #15181d 70%); display: grid; place-items: center; color: #e4e8ee; }
+  .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .video .face { display: grid; gap: 14px; justify-items: center; font-size: 26px; opacity: .85; }
+  .callbar { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 30px; display: flex; align-items: center; gap: 20px;
+    background: rgba(0,0,0,.55); color: #fff; font-size: 30px; font-weight: 600; }
+  .hangup { margin-left: auto; font: 800 34px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 20px; padding: 20px 46px; cursor: pointer; display: flex; gap: 12px; align-items: center; }
+  .hangup svg { width: 34px; height: 34px; }
+  .cancel { font: 700 30px var(--font); color: #fff; background: var(--s-end); border: 0; border-radius: 18px; padding: 16px 44px; cursor: pointer; margin-top: 10px; }
+  .setup { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; padding: 60px; text-align: center; background: var(--s-bg); }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { .ring { animation: none; } .screen { transition: none; } }
+</style>
+</head>
+<body>
+<div class="fit" id="fit">
+  <div class="screen" id="screen">
+    <div class="col">
+      <div class="clock">
+        <div class="time" id="time"></div>
+        <div class="day" id="day"></div>
+        <div class="part" id="part"></div>
+        <div class="date" id="date"></div>
+        <div class="offline" id="offline" hidden>Reconnecting… showing the last saved schedule.</div>
+      </div>
+      <div class="calls">
+        <div class="label">Video call</div>
+        <div id="contacts" style="display:grid;gap:10px"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card today">
+        <h2>Today</h2>
+        <div id="allday"></div>
+        <div id="events"></div>
+        <div class="tomorrow" id="tomorrow"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card msgs">
+        <h2>Messages</h2>
+        <div id="msgs" style="display:grid;gap:14px"></div>
+      </div>
+    </div>
+    <div class="overlay" id="overlay" hidden></div>
+    <div class="setup" id="setup" hidden></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Address of the Apps Script web app (the /exec link). Can be overridden with &api= in the page link.
+  var DEFAULT_API = 'https://script.google.com/macros/s/AKfycbw1JY_JS05U7am_wtUvLvs_LHjv2hGKldUsoUTF_KLy2wmmtXIdI6fNDEzT12X0Q0YkDg/exec';
+  var TZ = 'America/Los_Angeles';
+  var COUNTDOWN = 5;          // seconds before an incoming call connects
+  var POLL_IDLE = 10000;      // ms between checks normally
+  var POLL_CALL = 3000;       // ms between checks while a call is happening
+
+  var qs = new URLSearchParams(location.search);
+  var KEY = qs.get('k') || '';
+  var API = qs.get('api') || DEFAULT_API;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var screen = $('screen'), fit = $('fit'), overlay = $('overlay');
+  var data = null, failures = 0, pollTimer = null;
+  var callUi = null;          // { id, name, color, phase: 'countdown' | 'calling' | 'live' | 'ended' }
+  var timers = [];
+
+  function scale() {
+    var s = Math.min(fit.clientWidth / 1280, fit.clientHeight / 800);
+    screen.style.transform = 'translate(' + (fit.clientWidth - 1280 * s) / 2 + 'px,' + (fit.clientHeight - 800 * s) / 2 + 'px) scale(' + s + ')';
+  }
+  window.addEventListener('resize', scale); scale();
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ----- Time in Grass Valley, whatever the device's own time zone -----
+  var fmtParts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hourCycle: 'h23' });
+  function pacific() {
+    var o = {};
+    fmtParts.formatToParts(new Date()).forEach(function (p) { o[p.type] = p.value; });
+    var h = Number(o.hour) % 24, m = Number(o.minute);
+    return { h: h, m: m, mins: h * 60 + m, weekday: o.weekday, month: o.month, day: o.day, year: o.year };
+  }
+  function partOf(h) { return h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 20 ? 'Evening' : 'Night'; }
+
+  var lastMinute = -1;
+  function tick() {
+    var p = pacific();
+    $('time').innerHTML = (p.h % 12 || 12) + ':' + String(p.m).padStart(2, '0') + '<small>' + (p.h < 12 ? 'AM' : 'PM') + '</small>';
+    $('day').textContent = p.weekday;
+    $('part').textContent = partOf(p.h);
+    $('date').textContent = p.month + ' ' + p.day + ', ' + p.year;
+    screen.classList.toggle('night', p.h >= 20 || p.h < 6);
+    if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); }
+  }
+
+  // ----- Schedule -----
+  function evHtml(ev, cls, pill) {
+    return '<div class="ev ' + cls + '"><div class="t">' + esc(ev.time) + '</div><div>' +
+      (pill ? '<div class="pill">' + pill + '</div>' : '') +
+      '<div class="what">' + (ev.who ? '<span class="who ' + esc(ev.who) + '">' + esc(ev.whoLabel) + ':</span> ' : '') + esc(ev.title) + '</div>' +
+      (ev.notes.length ? '<div class="n">' + ev.notes.map(esc).join('<br>') + '</div>' : '') + '</div></div>';
+  }
+
+  function waitText(mins) {
+    if (mins < 60) return 'in ' + mins + (mins === 1 ? ' minute' : ' minutes');
+    var h = Math.round(mins / 60);
+    return 'in about ' + h + (h === 1 ? ' hour' : ' hours');
+  }
+
+  function renderEvents() {
+    if (!data) return;
+    var now = pacific().mins, cal = data.cal;
+    var allDay = cal.today.filter(function (i) { return i.allDay; });
+    var timed = cal.today.filter(function (i) { return !i.allDay; });
+
+    $('allday').innerHTML = allDay.length ? '<div class="allday"><b>All day:</b> ' + allDay.map(function (i) {
+      return (i.who ? '<span class="who ' + esc(i.who) + '">' + esc(i.whoLabel) + ':</span> ' : '') + esc(i.title);
+    }).join(' · ') + '</div>' : '';
+
+    // Keep the list short: the most recent finished item, then what's still to come
+    var done = timed.filter(function (i) { return i.e <= now; });
+    var rest = timed.filter(function (i) { return i.e > now; });
+    var shown = done.slice(-1).concat(rest.slice(0, 5));
+    var html = '', nextFound = false;
+    shown.forEach(function (ev) {
+      if (ev.e <= now) html += evHtml(ev, 'done');
+      else if (ev.s <= now) html += evHtml(ev, 'next', 'Happening now');
+      else if (!nextFound) { nextFound = true; html += evHtml(ev, 'next', 'Next, ' + waitText(ev.s - now)); }
+      else html += evHtml(ev, '');
+    });
+    if (rest.length > 5) html += '<div class="more">and ' + (rest.length - 5) + ' more later today</div>';
+    if (!timed.length && !allDay.length) html = '<div class="quiet">Nothing scheduled today. Enjoy a quiet day.</div>';
+    else if (!rest.length && timed.length) html += '<div class="quiet">That\'s everything for today.</div>';
+    $('events').innerHTML = html;
+
+    $('tomorrow').innerHTML = '<div class="label">Tomorrow, ' + esc(cal.tomorrowName) + '</div>' +
+      (cal.tomorrow.length ? cal.tomorrow.slice(0, 2).map(function (ev) {
+        return ev.allDay ? '<div class="ev"><div class="t">All day</div><div class="what">' + (ev.who ? '<span class="who ' + esc(ev.who) + '">' + esc(ev.whoLabel) + ':</span> ' : '') + esc(ev.title) + '</div></div>' : evHtml(ev, '');
+      }).join('') : '<div class="quiet">Nothing scheduled.</div>');
+  }
+
+  // ----- Contacts and messages -----
+  var CAM = '<svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg>';
+  var THUMB = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v11H3V10z"/><path d="M7 10l4-8a3 3 0 0 1 3 3v4h6a2 2 0 0 1 2 2.3l-1.4 8A2 2 0 0 1 18.6 21H7"/></svg>';
+  var PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>';
+  function avatar(name, color, cls) { return '<span class="avatar ' + (cls || '') + '" style="background:' + esc(color) + '">' + esc(name.charAt(0)) + '</span>'; }
+
+  var contactsKey = '';
+  function renderContacts() {
+    var k = JSON.stringify(data.family);
+    if (k === contactsKey) return;
+    contactsKey = k;
+    $('contacts').innerHTML = data.family.map(function (f) {
+      return '<button class="callbtn" data-to="' + esc(f.id) + '">' + avatar(f.name, f.color) + esc(f.name) + CAM + '</button>';
+    }).join('');
+  }
+
+  var replying = {};
+  function renderMsgs() {
+    var list = data.messages;
+    $('msgs').innerHTML = list.length ? list.map(function (m) {
+      var reply = m.reply || replying[m.id];
+      return '<div class="msg"><div class="from">' + avatar(m.from, m.color) + esc(m.from) + ' <span>' + esc(m.when) + '</span></div>' +
+        '<div class="body">' + esc(m.text) + '</div>' +
+        (reply ? '<div class="sent">✓ You told ' + esc(m.from) + ': ' + esc(reply) + '</div>' :
+          '<div class="replies"><button class="reply" data-id="' + esc(m.id) + '" data-r="Got it">' + THUMB + 'Got it</button>' +
+          '<button class="reply" data-id="' + esc(m.id) + '" data-r="Call me">' + PHONE + 'Call me</button></div>') + '</div>';
+    }).join('') : '<div class="quiet" style="padding:0">No new messages.</div>';
+  }
+
+  $('msgs').addEventListener('click', function (e) {
+    var b = e.target.closest('.reply'); if (!b) return;
+    var id = b.getAttribute('data-id');
+    replying[id] = b.getAttribute('data-r');
+    renderMsgs();
+    api({ a: 'reply', id: id, r: replying[id] }).catch(function () { delete replying[id]; renderMsgs(); });
+  });
+
+  // ----- Talking to the backend -----
+  function api(params) {
+    var u = API + (API.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(KEY);
+    Object.keys(params).forEach(function (k) { u += '&' + k + '=' + encodeURIComponent(params[k]); });
+    return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok && j.error) throw new Error(j.error);
+      return j;
+    });
+  }
+
+  function save(d) { try { localStorage.setItem('rr_screen', JSON.stringify(d)); } catch (e) {} }
+  function restore() { try { return JSON.parse(localStorage.getItem('rr_screen') || 'null'); } catch (e) { return null; } }
+
+  function apply(d) {
+    data = d;
+    renderContacts(); renderEvents(); renderMsgs();
+    handleCall(d.call);
+  }
+
+  function poll() {
+    clearTimeout(pollTimer);
+    api({ a: 'screen' }).then(function (d) {
+      failures = 0; $('offline').hidden = true;
+      save(d); apply(d);
+    }).catch(function () {
+      failures++;
+      if (failures >= 3) $('offline').hidden = false;
+    }).then(function () {
+      pollTimer = setTimeout(poll, callUi && callUi.phase !== 'ended' ? POLL_CALL : POLL_IDLE);
+    });
+  }
+
+  // ----- Calls -----
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  function chime() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [[660, 0], [880, .35], [660, 1.2], [880, 1.55]].forEach(function (n) {
+        var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + n[1];
+        o.frequency.value = n[0]; o.type = 'sine';
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.25, t + .03); g.gain.exponentialRampToValueAtTime(.001, t + .6);
+        o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + .7);
+      });
+    } catch (e) { /* sound is optional */ }
+  }
+
+  function handleCall(c) {
+    if (c && c.dir === 'in' && c.state === 'ringing' && (!callUi || callUi.id !== c.id)) return incoming(c);
+    if (c && callUi && callUi.id === c.id && c.state === 'live' && callUi.phase !== 'live' && callUi.phase !== 'countdown') return connected(c);
+    if (!c && callUi && callUi.phase !== 'ended') return ended(callUi.phase === 'calling' ? 'No answer' : 'Call ended');
+  }
+
+  function incoming(c) {
+    clearTimers(); chime();
+    callUi = { id: c.id, name: c.name, color: c.color, phase: 'countdown' };
+    var left = COUNTDOWN;
+    function draw() {
+      overlay.hidden = false;
+      overlay.innerHTML = '<div class="ring">' + avatar(c.name, c.color, 'big') + '</div><h3>' + esc(c.name) + ' is calling</h3><p>Connecting in ' + left + '…</p>';
+    }
+    draw();
+    function step() {
+      left--;
+      if (left > 0) { draw(); later(step, 1000); return; }
+      api({ a: 'answer', id: c.id }).then(function (j) { connected(j.call); }).catch(function () { ended('Call ended'); });
+    }
+    later(step, 1000);
+  }
+
+  function outgoing(to) {
+    var f = data.family.filter(function (x) { return x.id === to; })[0];
+    if (!f || callUi) return;
+    clearTimers();
+    callUi = { id: null, name: f.name, color: f.color, phase: 'calling' };
+    overlay.hidden = false;
+    overlay.innerHTML = '<div class="ring">' + avatar(f.name, f.color, 'big') + '</div><h3>Calling ' + esc(f.name) + '…</h3><p>Waiting for ' + esc(f.name) + ' to answer.</p>' +
+      '<button class="cancel" id="cancel">Cancel</button>';
+    $('cancel').onclick = hangUp;
+    api({ a: 'call', to: to }).then(function (j) { callUi.id = j.call.id; poll(); })
+      .catch(function () { ended('Could not call right now'); });
+  }
+
+  function connected(c) {
+    clearTimers();
+    callUi = { id: c.id, name: c.name, color: c.color, phase: 'live' };
+    var t0 = Date.now();
+    overlay.hidden = false;
+    var video = c.room
+      ? '<div class="video"><iframe src="' + esc(c.room) + '" allow="camera; microphone; autoplay; display-capture"></iframe></div>'
+      : '<div class="video"><div class="face">' + avatar(c.name, c.color, 'big') + 'Video connects here once it\'s set up</div></div>';
+    overlay.innerHTML = video +
+      '<div class="callbar"><span>Talking with ' + esc(c.name) + ' · <span id="dur">0:00</span></span>' +
+      '<button class="hangup" id="hangup">' + PHONE + 'Hang up</button></div>';
+    $('hangup').onclick = hangUp;
+    (function run() {
+      var s = Math.floor((Date.now() - t0) / 1000), el = $('dur');
+      if (el) { el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); later(run, 1000); }
+    })();
+    poll();
+  }
+
+  function hangUp() {
+    var id = callUi && callUi.id;
+    ended('Call ended');
+    if (id) api({ a: 'endcall', id: id }).catch(function () {});
+  }
+
+  function ended(text) {
+    clearTimers();
+    if (callUi) callUi.phase = 'ended';
+    overlay.hidden = false;
+    overlay.innerHTML = '<h3>' + esc(text) + '</h3>';
+    later(function () { overlay.hidden = true; overlay.innerHTML = ''; callUi = null; }, 2500);
+  }
+
+  $('contacts').addEventListener('click', function (e) {
+    var b = e.target.closest('.callbtn'); if (b) outgoing(b.getAttribute('data-to'));
+  });
+
+  // ----- Start -----
+  tick(); setInterval(tick, 1000);
+  if (!KEY || !API) {
+    $('setup').hidden = false;
+    $('setup').textContent = 'This screen needs its setup link. Eric can fix this remotely.';
+    return;
+  }
+  var saved = restore();
+  if (saved) { saved.call = null; apply(saved); }
+  poll();
+})();
+</script>
+</body>
+</html>
