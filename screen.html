@@ -595,7 +595,7 @@
   function minutesText(n) { return n === 1 ? '1 minute' : n + ' minutes'; }
   // "Eye doctor (Dr. Patel)" reads aloud as "eye doctor, Dr. Patel,"
   function spoken(t) {
-    t = String(t).replace(/\s*\(([^)]*)\)/g, ', $1,').trim();
+    t = String(t).replace(/\s*\(([^)]*)\)/g, ', $1,').replace(/\s+[-–—]\s+/g, ', ').trim();
     return /^[A-Z][a-z]/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t;
   }
 
@@ -698,10 +698,21 @@
     if (h === 12 && m === 0) return 'noon';
     return (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? ' AM' : ' PM');
   }
+  function rideDest(i) {
+    var m = i.ride && i.notes.map(function (n) { return /^Going to:\s*(.*?)\.?$/.exec(n); }).filter(Boolean)[0];
+    return m ? m[1] : '';
+  }
+  // Leaves out an appointment when a van ride at the same time already named it
+  function withoutRideTargets(list) {
+    return list.filter(function (i) {
+      return i.ride || !list.some(function (r) { return r.ride && r.s === i.s && rideDest(r) === i.title.replace(/\.$/, ''); });
+    });
+  }
   function itemSentences(i, now) {
     var name = whoName(i), out;
     var what = (i.ride && /^eskaton/i.test(i.title) ? 'the ' + i.title : spoken(i.title)).replace(/[,.\s]+$/, '');
-    if (i.ride) out = (i.s <= now ? 'Right now, ' : 'At ' + clockText(i.s) + ', ') + what + '.';
+    var dest = rideDest(i);
+    if (i.ride) out = (i.s <= now ? 'Right now, ' : 'At ' + clockText(i.s) + ', ') + what + (dest ? ', to go to: ' + spoken(dest).replace(/[,.\s]+$/, '') : '') + '.';
     else out = (i.s <= now ? 'Right now, until ' + clockText(i.e) + ', ' : 'At ' + clockText(i.s) + ', ') +
       (name ? 'for ' + name + ': ' : '') + what + '.';
     var list = [out];
@@ -721,6 +732,7 @@
     var tmAll = (cal.tomorrow || []).filter(function (i) { return i.allDay; });
     var titles = function (l) { return l.map(function (i) { return spoken(i.title); }).join(', and '); };
     function addItems(list, max, at) {   // at: the time "right now" is measured against (-1 for tomorrow)
+      list = withoutRideTargets(list);
       list.slice(0, max).forEach(function (i) { say.push.apply(say, itemSentences(i, at)); });
       if (list.length > max) say.push('And ' + (list.length - max) + ' more.');
     }
@@ -1022,7 +1034,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-16.160638';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-16.161533';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
