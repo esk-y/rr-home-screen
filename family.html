@@ -86,6 +86,7 @@
     <p class="tstat" id="tstat">Checking the tablet…</p>
     <a class="screenlink" id="screenLink" href="#">See what their screen shows</a>
     <p class="note">A live, view-only copy. Nothing you tap there reaches the tablet. On a phone, turn it sideways.</p>
+    <p class="note" id="tver"></p>
   </section>
 
   <section class="card">
@@ -163,7 +164,33 @@
       : 'Tablet hasn\'t checked in yet.';
     $('tstat').className = 'tstat ' + t.state;
     $('tstat').textContent = text;
+    renderVersion();
   }
+
+  // Which version of the screen page the tablet runs, compared with the newest one published
+  var newestVersion = '';
+  function versionLabel(v) {   // '2026-11-16.082710' -> 'Nov 16, 8:27 AM' (when it was published)
+    var m = /^(\d{4})-(\d\d)-(\d\d)\.(\d\d)(\d\d)/.exec(v || '');
+    if (!m) return v;
+    var h = Number(m[4]);
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m[2]) - 1] + ' ' + Number(m[3]) + ', ' +
+      (h % 12 || 12) + ':' + m[5] + ' ' + (h < 12 ? 'AM' : 'PM');
+  }
+  function renderVersion() {
+    var v = state && state.tablet ? state.tablet.version : '', text;
+    if (!v) text = 'Screen version: not reported yet.';
+    else if (!newestVersion || v === newestVersion) text = 'Screen version: ' + versionLabel(v) + (newestVersion ? ' (the newest).' : '.');
+    else if (v > newestVersion) text = 'Screen version: ' + versionLabel(v) + '.';
+    else text = 'Screen version: ' + versionLabel(v) + '. A newer one (' + versionLabel(newestVersion) + ') installs itself within about 15 minutes, when nothing is on the screen.';
+    $('tver').textContent = text;
+  }
+  function checkNewest() {
+    fetch('screen.html?update-check=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (t) { var m = /PAGE_VERSION = '(\d[^']*)'/.exec(t); if (m) { newestVersion = m[1]; renderVersion(); } })
+      .catch(function () {});
+  }
+  checkNewest(); setInterval(checkNewest, 5 * 60000);
 
   // ----- Video (Daily) -----
   var frame = null, inVideo = false;

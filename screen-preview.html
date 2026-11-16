@@ -508,6 +508,7 @@
   // ----- Talking to the backend -----
   function api(params) {
     var u = API + (API.indexOf('?') < 0 ? '?' : '&') + (VIEW ? 'f=' + encodeURIComponent(FKEY) : 'k=' + encodeURIComponent(KEY));
+    if (!VIEW) u += '&pv=' + encodeURIComponent(PAGE_VERSION);   // so family can see which version the tablet runs
     Object.keys(params).forEach(function (k) { u += '&' + k + '=' + encodeURIComponent(params[k]); });
     return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok && j.error) throw new Error(j.error);
@@ -902,7 +903,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-16.082710';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-16.083941';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
