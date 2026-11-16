@@ -766,16 +766,11 @@
     function done() { if (reading === me) { reading = null; setReadButton(false); } }
 
     if (window.fully && typeof fully.textToSpeech === 'function') {
-      // Fully can't say when it has finished a sentence, so each one is timed generously and queued
-      var at = 0;
-      say.forEach(function (text) {
-        me.timers.push(setTimeout(function () {
-          if (reading !== me) return;
-          try { fully.textToSpeech(text, 'en-US', '', true); } catch (e) { fully.textToSpeech(text); }
-        }, at));
-        at += text.split(/\s+/).length * 420 + 500 + READ_PAUSE;
-      });
-      me.timers.push(setTimeout(done, at));
+      // Fully's plain one-argument call (the one reminders use; the locale/queue form failed on the
+      // tablet). Read as one piece so nothing gets cut off; the tablet's speech-rate setting sets the pace.
+      var all = say.join(' ');
+      try { fully.textToSpeech(all); } catch (e) {}
+      me.timers.push(setTimeout(done, all.split(/\s+/).length * 450 + 2000));   // when the button goes back to "Read my day"
     } else if (window.speechSynthesis) {
       speechSynthesis.cancel();
       var n = 0;
@@ -1027,7 +1022,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-16.155722';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-16.160638';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
