@@ -25,7 +25,7 @@
     --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", Verdana, "Segoe UI", sans-serif;
     position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0;
     background: var(--s-bg); color: var(--s-ink); font-family: var(--font);
-    display: grid; grid-template-columns: 400px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
+    display: grid; grid-template-columns: 384px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
     transition: background .6s, color .6s; user-select: none; -webkit-user-select: none;
   }
   .screen.night {
@@ -35,7 +35,7 @@
   }
   .col { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
   .card { background: var(--s-panel); border-radius: 18px; padding: 20px 22px; }
-  .clock { display: grid; gap: 2px; padding: 6px 4px 0; }
+  .clock { display: grid; gap: 2px; padding: 6px 1px 0; }
   .time { font-size: 116px; font-weight: 800; line-height: 1; letter-spacing: -3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .time small { font-size: 38px; letter-spacing: 0; margin-left: 8px; font-weight: 800; }
   .day { font-size: 58px; font-weight: 800; line-height: 1.05; margin-top: 16px; }
@@ -83,6 +83,24 @@
   .tomorrow .row .t { font-size: 30px; }
   .tomorrow .row .what { font-size: 30px; }
   .tomorrow .quiet { font-size: 30px; }
+
+  /* Evening view (6:30 PM to midnight): tomorrow, large and with details */
+  .tonight { display: grid; gap: 4px; padding-bottom: 12px; border-bottom: 4px solid var(--s-line); margin-bottom: 4px; }
+  .tonight .tlabel { font-size: 34px; font-weight: 800; }
+  .tmhead { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; padding: 2px 4px 6px; }
+  .tmhead .tag { font-size: 30px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #fff; background: var(--both);
+    border-radius: 12px; padding: 4px 16px 2px; align-self: center; }
+  .screen.night .tmhead .tag { color: #0a0f13; }
+  .tmhead .tday { font-size: 44px; font-weight: 800; line-height: 1.1; }
+  .trow { display: grid; grid-template-columns: var(--tw, 200px) minmax(0, 1fr); gap: 18px; align-items: baseline; padding: 10px 4px; border-top: 2px solid var(--s-line); }
+  .trow .t { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .trow .what { font-weight: 800; line-height: 1.15; }
+  .trow .nn { font-weight: 700; line-height: 1.25; margin-top: 4px; }
+  .ev-xl { --tw: 220px; } .ev-xl .trow .t, .ev-xl .trow .what { font-size: 46px; } .ev-xl .trow .nn, .ev-xl .tmall { font-size: 32px; }
+  .ev-lg { --tw: 190px; } .ev-lg .trow .t, .ev-lg .trow .what { font-size: 40px; } .ev-lg .trow .nn, .ev-lg .tmall { font-size: 30px; }
+  .ev-md { --tw: 170px; } .ev-md .trow .t, .ev-md .trow .what { font-size: 34px; } .ev-md .trow .nn, .ev-md .tmall { font-size: 28px; }
+  .tmall { font-weight: 700; padding: 0 4px 6px; }
+  .tmquiet { font-size: 40px; font-weight: 700; padding: 10px 4px; }
 
   /* Messages: a card pops over the calendar, then shrinks to a strip until answered */
   .mstrip { display: flex; align-items: center; gap: 16px; width: 100%; padding: 10px 18px 10px 10px; border-radius: 16px; cursor: pointer; text-align: left;
@@ -158,7 +176,7 @@
     <div class="col">
       <div class="card today">
         <div id="mstrip"></div>
-        <h2>Today</h2>
+        <h2 id="todayHead">Today</h2>
         <div id="allday"></div>
         <div class="events" id="events"></div>
         <div class="tomorrow" id="tomorrow"></div>
@@ -210,10 +228,12 @@
 
   // ----- Time in Grass Valley, whatever the device's own time zone -----
   var fmtParts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hourCycle: 'h23' });
-  function pacific() {
+  function pacific(real) {
     var o = {};
     fmtParts.formatToParts(new Date()).forEach(function (p) { o[p.type] = p.value; });
     var h = Number(o.hour) % 24, m = Number(o.minute);
+    var fake = qs.get('demo') && /^(\d{1,2}):(\d\d)$/.exec(qs.get('now') || '');   // for reviewing the layout only
+    if (fake && !real) { h = Number(fake[1]) % 24; m = Number(fake[2]); }
     return { h: h, m: m, mins: h * 60 + m, weekday: o.weekday, month: o.month, day: o.day, year: o.year };
   }
   function partOf(h) { return h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 20 ? 'Evening' : 'Night'; }
@@ -280,9 +300,17 @@
     return 'in about ' + h + (h === 1 ? ' hour' : ' hours');
   }
 
+  var EVENING_FROM = 18 * 60 + 30;   // from 6:30 PM the calendar shows tomorrow
+  var fmtTmDate = new Intl.DateTimeFormat('en-US', { timeZone: TZ, month: 'long', day: 'numeric' });
+
   function renderEvents() {
     if (!data) return;
     var now = pacific().mins, cal = data.cal;
+    var evening = now >= EVENING_FROM;
+    $('todayHead').hidden = evening;
+    $('allday').hidden = evening;
+    $('tomorrow').hidden = evening;
+    if (evening) return renderEvening(now, cal);
     var allDay = cal.today.filter(function (i) { return i.allDay; });
     var timed = cal.today.filter(function (i) { return !i.allDay; });
 
@@ -305,11 +333,12 @@
     }
 
     $('tomorrow').innerHTML = '<div class="label">Tomorrow, ' + esc(cal.tomorrowName) + '</div>' +
-      (cal.tomorrow.length ? cal.tomorrow.slice(0, 2).map(function (ev) { return rowHtml(ev); }).join('')
+      (tmTimed(cal).length ? tmTimed(cal).slice(0, 2).map(function (ev) { return rowHtml(ev); }).join('')
         : '<div class="quiet">Nothing scheduled.</div>');
 
     // Show as much as fits: drop the finished item first, then later items
     var box = $('events'), keepDone = true, n = Math.min(4, later.length);
+    box.className = 'events';
     box.innerHTML = draw(keepDone, n);
     while (box.scrollHeight > box.clientHeight + 2) {
       if (keepDone && done.length) keepDone = false;
@@ -319,12 +348,60 @@
     }
   }
 
+  // The small Tomorrow section leaves out rides; the evening view includes them
+  function tmTimed(cal) { return (cal.tomorrow || []).filter(function (i) { return !i.allDay && !i.ride; }); }
+
+  // ----- Evening: tomorrow in detail. Anything still going on tonight stays on top, above a line -----
+  function renderEvening(now, cal) {
+    var tonight = cal.today.filter(function (i) { return !i.allDay && i.e > now; });
+    var tmAll = (cal.tomorrow || []).filter(function (i) { return i.allDay; });
+    var tm = (cal.tomorrow || []).filter(function (i) { return !i.allDay; });
+    var noon = new Date(Date.now() + (24 * 60 - pacific(true).mins + 12 * 60) * 60000);   // about noon tomorrow
+    var head = '<div class="tmhead"><span class="tag">Tomorrow</span><span class="tday">' +
+      esc(cal.tomorrowName) + ', ' + esc(cal.tomorrowDate || fmtTmDate.format(noon)) + '</span></div>';
+
+    function tonightHtml(extra) {
+      if (!tonight.length) return '';
+      var first = tonight[0];
+      return '<div class="tonight"><div class="tlabel">Tonight</div>' +
+        nextHtml(first, first.s <= now ? 'Happening now' : 'Next, ' + waitText(first.s - now)) +
+        tonight.slice(1, 1 + extra).map(function (ev) { return rowHtml(ev); }).join('') +
+        (tonight.length - 1 > extra ? '<div class="more">and ' + (tonight.length - 1 - extra) + ' more tonight</div>' : '') + '</div>';
+    }
+    function rowsHtml(count, withNotes) {
+      if (!tm.length && !tmAll.length) return '<div class="tmquiet">Nothing scheduled tomorrow.</div>';
+      var html = tmAll.length ? '<div class="tmall">All day: ' + tmAll.map(whoTitle).join(' · ') + '</div>' : '';
+      html += tm.slice(0, count).map(function (ev, i) {
+        var notes = i < withNotes ? ev.notes.slice(0, 3) : [];
+        return '<div class="trow"><div class="t">' + esc(ev.time) + '</div><div><div class="what">' + whoTitle(ev) + '</div>' +
+          (notes.length ? '<div class="nn">' + notes.map(esc).join('<br>') + '</div>' : '') + '</div></div>';
+      }).join('');
+      if (tm.length > count) html += '<div class="more">and ' + (tm.length - count) + ' more tomorrow</div>';
+      return html;
+    }
+
+    // Biggest text that fits; then fewer notes, fewer tonight rows, fewer tomorrow items
+    var box = $('events'), sizes = ['ev-xl', 'ev-lg', 'ev-md'];
+    var size = 0, extra = Math.min(2, Math.max(0, tonight.length - 1)), count = tm.length, withNotes = tm.length;
+    function draw() { box.className = 'events ' + sizes[size]; box.innerHTML = tonightHtml(extra) + head + rowsHtml(count, withNotes); }
+    draw();
+    while (box.scrollHeight > box.clientHeight + 2) {
+      if (size < sizes.length - 1) size++;
+      else if (withNotes > 0) withNotes--;
+      else if (extra > 0) extra--;
+      else if (count > 1) count--;
+      else break;
+      draw();
+    }
+  }
+
   // ----- Contacts and messages -----
   var CAM = '<svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg>';
   var THUMB = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v11H3V10z"/><path d="M7 10l4-8a3 3 0 0 1 3 3v4h6a2 2 0 0 1 2 2.3l-1.4 8A2 2 0 0 1 18.6 21H7"/></svg>';
   var PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>';
   function avatar(name, color, cls) { return '<span class="avatar ' + (cls || '') + '" style="background:' + esc(color) + '">' + esc(name.charAt(0)) + '</span>'; }
 
+  var SHORT_NAMES = { kiersten: 'Kierst' };   // shorter names on the call buttons only
   var contactsKey = '';
   function renderContacts() {
     var k = JSON.stringify(data.family);
@@ -332,7 +409,7 @@
     contactsKey = k;
     $('contacts').innerHTML = data.family.map(function (f) {
       return '<button class="callbtn" data-to="' + esc(f.id) + '" style="--c:' + esc(f.color) + '">' +
-        '<span class="ic">' + CAM + '</span>Call ' + esc(f.name) + '</button>';
+        '<span class="ic">' + CAM + '</span>Call ' + esc(SHORT_NAMES[f.id] || f.name) + '</button>';
     }).join('');
   }
 
@@ -446,6 +523,7 @@
   function demoCal(tomorrowName) {
     var n = pacific().mins, at = function (m) { var h = Math.floor(((m % 1440) + 1440) % 1440 / 60), mm = ((m % 60) + 60) % 60; return (h % 12 || 12) + ':' + String(mm).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM'); };
     var it = function (s, len, who, title, notes, ride) { return { allDay: false, ride: !!ride, s: s, e: s + len, time: at(s), who: who, whoLabel: who === 'both' ? 'Both of you' : who.charAt(0).toUpperCase() + who.slice(1), title: title, notes: notes || [] }; };
+    if (qs.get('demo') === 'evening') n = 12 * 60;   // a day that's over by 6:30 PM
     return {
       today: [
         it(n - 120, 60, 'both', 'Exercise class', ['Where: Activity room.']),
@@ -456,7 +534,12 @@
         it(n + 330, 90, 'both', 'Movie night', ['Where: Main lounge.'])
       ],
       tomorrowName: tomorrowName,
-      tomorrow: [it(600, 60, 'rhonda', 'Haircut', []), it(840, 60, 'rob', 'Dentist', []), it(900, 30, 'both', 'Call with Kiersten', [])]
+      tomorrow: [
+        it(570, 15, 'rob', 'Eskaton van picks you up', ['Front entrance.', 'Going to: Dentist (Dr. Lee).'], true),
+        it(600, 60, 'rob', 'Dentist (Dr. Lee)', ['Where: Sierra Dental, Grass Valley.', 'Bring: insurance card.']),
+        it(780, 60, 'rhonda', 'Haircut', ['Where: Salon, 2nd floor.']),
+        it(900, 30, 'both', 'Call with Kiersten', [])
+      ]
     };
   }
 
