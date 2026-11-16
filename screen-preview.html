@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>Rob &amp; Rhonda's Home Screen</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&display=swap">
 <!-- Daily video library (pinned version) -->
@@ -125,11 +125,23 @@
   .remind .rsub { font-size: 34px; color: var(--s-muted); line-height: 1.3; }
   .remind .ok { font: 800 40px var(--font); background: var(--s-call); color: #fff; border: 0; border-radius: 20px; padding: 18px 96px; cursor: pointer; margin-top: 8px; }
   .setup { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; padding: 60px; text-align: center; background: var(--s-bg); }
+  /* View-only copy for family (screen.html?f=FAMILY_KEY): a status bar above the screen */
+  .viewbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 10px;
+    background: #0a0f13; color: #eef3f6; font: 600 16px/1.25 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .viewbar .dot { width: 12px; height: 12px; border-radius: 50%; background: #3fbf6f; flex: none; }
+  .viewbar.warn .dot { background: #e2b866; }
+  .viewbar.bad { background: #4a1512; }
+  .viewbar.bad .dot { background: #ff6b60; }
+  .viewbar .vo { color: #b8c4cc; font-weight: 500; }
+  .viewbar a { margin-left: auto; color: #fff; white-space: nowrap; padding: 8px 0 8px 8px; }
+  body.viewing .fit { top: 56px; }
+  .screen.viewonly { pointer-events: none; }
   [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) { .ring { animation: none; } .screen { transition: none; } }
 </style>
 </head>
 <body>
+<div class="viewbar" id="viewbar" hidden></div>
 <div class="fit" id="fit">
   <div class="screen" id="screen">
     <div class="col">
@@ -170,6 +182,8 @@
 
   var qs = new URLSearchParams(location.search);
   var KEY = qs.get('k') || '';
+  var FKEY = qs.get('f') || '';      // a family link: view-only copy (no sound, no buttons, no video)
+  var VIEW = !KEY && !!FKEY;
   var API = qs.get('api') || DEFAULT_API;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -213,6 +227,34 @@
     $('date').innerHTML = esc(p.month + ' ' + p.day) + '<br><span class="yr">' + esc(p.year) + '</span>';
     screen.classList.toggle('night', p.h >= 20 || p.h < 6);
     if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); checkReminders(); renderMessages(); }
+    viewStatus();
+  }
+
+  // ----- View-only copy: is the real tablet checking in? -----
+  var seenInfo = null, offlineMinutes = 60;
+  var fmtSeen = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  var fmtDay = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' });
+  function seenLabel(ms) {
+    var d = new Date(ms), same = fmtDay.format(d) === fmtDay.format(new Date());
+    return (same ? '' : fmtDay.format(d) + ', ') + fmtSeen.format(d);
+  }
+  function viewStatus() {
+    if (!VIEW) return;
+    var cls = '', txt;
+    if (failures >= 3) { cls = 'warn'; txt = 'Can\'t reach the server. Showing the last update.'; }
+    else if (!seenInfo) txt = 'Loading…';
+    else if (!seenInfo.seen) { cls = 'warn'; txt = 'The tablet hasn\'t checked in yet.'; }
+    else {
+      var age = seenInfo.age + (Date.now() - seenInfo.fetchedAt), s = Math.max(1, Math.round(age / 1000));
+      if (s < 120) txt = 'Tablet online · checked in ' + s + ' sec ago';
+      else if (age < offlineMinutes * 60000) { cls = 'warn'; txt = 'Tablet hasn\'t checked in for ' + Math.round(s / 60) + ' min'; }
+      else { cls = 'bad'; txt = 'Tablet offline since ' + seenLabel(seenInfo.seen); }
+    }
+    var bar = $('viewbar');
+    bar.className = 'viewbar' + (cls ? ' ' + cls : '');
+    var html = '<span class="dot"></span><span>' + esc(txt) + ' <span class="vo">· View only</span></span>' +
+      '<a href="family.html?f=' + encodeURIComponent(FKEY) + '">My page</a>';
+    if (bar.innerHTML !== html) bar.innerHTML = html;
   }
 
   // ----- Schedule -----
@@ -298,7 +340,7 @@
   //       after 10 minutes, and disappears once Rob or Rhonda taps a reply -----
   var MSG_COLLAPSE = 10 * 60000;
   var replying = {}, msgUiKey = '', msgConfirmUntil = 0, msgShownAt = {};
-  try { msgShownAt = JSON.parse(localStorage.getItem('rr_msg_shown') || '{}'); } catch (e) {}
+  if (!VIEW) try { msgShownAt = JSON.parse(localStorage.getItem('rr_msg_shown') || '{}'); } catch (e) {}
   function saveShown() { try { localStorage.setItem('rr_msg_shown', JSON.stringify(msgShownAt)); } catch (e) {} }
 
   // Unanswered messages, oldest first
@@ -314,6 +356,14 @@
 
   function renderMessages() {
     if (!data) return;
+    if (VIEW) {
+      // The copy can't see what was tapped on the tablet, so it assumes each new message
+      // pops up when it arrives and shrinks to the strip 10 minutes later
+      msgShownAt = {};
+      (data.messages || []).forEach(function (x) { if (x.at) msgShownAt[x.id] = x.at; });
+      drawMessages(pendingMsgs());
+      return;
+    }
     var ids = {};
     (data.messages || []).forEach(function (x) { ids[x.id] = 1; });
     Object.keys(msgShownAt).forEach(function (k) { if (!ids[k]) delete msgShownAt[k]; });
@@ -380,7 +430,7 @@
 
   // ----- Talking to the backend -----
   function api(params) {
-    var u = API + (API.indexOf('?') < 0 ? '?' : '&') + 'k=' + encodeURIComponent(KEY);
+    var u = API + (API.indexOf('?') < 0 ? '?' : '&') + (VIEW ? 'f=' + encodeURIComponent(FKEY) : 'k=' + encodeURIComponent(KEY));
     Object.keys(params).forEach(function (k) { u += '&' + k + '=' + encodeURIComponent(params[k]); });
     return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok && j.error) throw new Error(j.error);
@@ -388,8 +438,9 @@
     });
   }
 
-  function save(d) { try { localStorage.setItem('rr_screen', JSON.stringify(d)); } catch (e) {} }
-  function restore() { try { return JSON.parse(localStorage.getItem('rr_screen') || 'null'); } catch (e) { return null; } }
+  var SAVE_KEY = VIEW ? 'rr_view' : 'rr_screen';
+  function save(d) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {} }
+  function restore() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { return null; } }
 
   // ?demo=1 swaps in a busy sample day (for reviewing the layout); everything else stays live
   function demoCal(tomorrowName) {
@@ -461,6 +512,7 @@
   }
 
   function speak(text) {
+    if (VIEW) return;
     try {
       // Fully Kiosk's own text-to-speech works without a tap; the browser's is the fallback
       if (window.fully && typeof fully.textToSpeech === 'function') { fully.textToSpeech(text); return; }
@@ -473,6 +525,7 @@
   }
 
   function softChime() {
+    if (VIEW) return;
     try {
       var ctx = new (window.AudioContext || window.webkitAudioContext)();
       [[523, 0], [784, .4]].forEach(function (n) {
@@ -490,7 +543,7 @@
   }
 
   function checkReminders() {
-    if (!data || !data.cal || qs.get('demo')) return;   // no spoken reminders for sample appointments
+    if (VIEW || !data || !data.cal || qs.get('demo')) return;   // none for sample appointments or the view-only copy
     var now = pacific().mins;
     if (reminder && now >= reminder.s + 20) hideReminder();   // tidy up 20 minutes after it starts
     if (now >= QUIET_FROM || now < QUIET_UNTIL || callUi) return;
@@ -539,11 +592,18 @@
     var asked = Date.now();
     api({ a: 'screen' }).then(function (d) {
       failures = 0; $('offline').hidden = true;
+      if (VIEW) {
+        seenInfo = { seen: d.seen || 0, age: d.seen ? Math.max(0, d.now - d.seen) : 0, fetchedAt: Date.now() };
+        offlineMinutes = d.offlineMinutes || 60;
+      } else {
+        (d.alerts || []).forEach(function (a) { sendAlert(a); });   // e.g. "tablet is back online"
+      }
       save(d); apply(d, asked);
     }).catch(function () {
       failures++;
-      if (failures >= 3) $('offline').hidden = false;
+      if (failures >= 3 && !VIEW) $('offline').hidden = false;
     }).then(function () {
+      viewStatus();
       pollTimer = setTimeout(poll, callUi && callUi.phase !== 'ended' ? POLL_CALL : POLL_IDLE);
     });
   }
@@ -553,6 +613,7 @@
   function clearTimers() { timers.forEach(clearTimeout); timers = []; }
 
   function chime() {
+    if (VIEW) return;
     try {
       var ctx = new (window.AudioContext || window.webkitAudioContext)();
       [[660, 0], [880, .35], [660, 1.2], [880, 1.55]].forEach(function (n) {
@@ -564,7 +625,26 @@
     } catch (e) { /* sound is optional */ }
   }
 
+  // View-only copy: show the call screen the tablet would show, without joining the video
+  var viewCallKey = '';
+  function viewCall(c) {
+    var k = c ? c.id + '|' + c.state : '';
+    if (k === viewCallKey) return;
+    viewCallKey = k;
+    if (!c) { overlay.hidden = true; overlay.innerHTML = ''; return; }
+    overlay.hidden = false;
+    if (c.state === 'live') {
+      overlay.innerHTML = '<div class="video"><div class="face">' + avatar(c.name, c.color, 'big') + 'Video call with ' + esc(c.name) + '</div></div>' +
+        '<div class="callbar"><span>Talking with ' + esc(c.name) + '</span></div>';
+    } else if (c.dir === 'in') {
+      overlay.innerHTML = '<div class="ring">' + avatar(c.name, c.color, 'big') + '</div><h3>' + esc(c.name) + ' is calling</h3><p>Connecting…</p>';
+    } else {
+      overlay.innerHTML = '<div class="ring">' + avatar(c.name, c.color, 'big') + '</div><h3>Calling ' + esc(c.name) + '…</h3><p>Waiting for ' + esc(c.name) + ' to answer.</p>';
+    }
+  }
+
   function handleCall(c, asked) {
+    if (VIEW) return viewCall(c);
     if (c && c.dir === 'in' && c.state === 'ringing' && (!callUi || callUi.id !== c.id)) return incoming(c);
     if (c && callUi && callUi.id === c.id && c.state === 'live' && callUi.phase !== 'live' && callUi.phase !== 'countdown') return connected(c);
     // The call is gone on the backend - but only trust answers to questions asked after the call existed
@@ -605,7 +685,7 @@
 
   function outgoing(to) {
     var f = data.family.filter(function (x) { return x.id === to; })[0];
-    if (!f || callUi) return;
+    if (!f || callUi || VIEW) return;
     clearTimers();
     // A 3-second pause with a big Cancel, so a mistaken tap never rings anyone
     callUi = { id: null, name: f.name, color: f.color, phase: 'starting' };
@@ -739,10 +819,17 @@
   });
 
   // ----- Start -----
+  if (VIEW) {
+    document.body.classList.add('viewing');
+    screen.classList.add('viewonly');
+    $('viewbar').hidden = false;
+    document.title = 'Rob & Rhonda\'s screen (view only)';
+    lastFit = '';
+  }
   tick(); setInterval(tick, 1000);
   // Re-fit the schedule once the large font has loaded (it changes text sizes)
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { renderEvents(); });
-  if (!KEY || !API) {
+  if ((!KEY && !FKEY) || !API) {
     $('setup').hidden = false;
     $('setup').textContent = 'This screen needs its setup link. Eric can fix this remotely.';
     return;
