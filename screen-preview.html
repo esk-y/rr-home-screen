@@ -901,6 +901,40 @@
     var b = e.target.closest('.callbtn'); if (b) outgoing(b.getAttribute('data-to'));
   });
 
+  // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
+  var PAGE_VERSION = '2026-11-16.082710';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
+  var newVersion = '';
+  function updateTries(v) {
+    try { var t = JSON.parse(localStorage.getItem('rr_update') || '{}'); return t.v === v ? t.n : 0; } catch (e) { return 0; }
+  }
+  function checkForUpdate() {
+    if (PAGE_VERSION === 'dev' || newVersion) return;
+    fetch(location.pathname + '?update-check=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (t) {
+        var m = /PAGE_VERSION = '(\d[^']*)'/.exec(t);
+        // Give up on a version after 3 tries, so a stubborn cache can't cause a reload loop
+        if (m && m[1] !== PAGE_VERSION && updateTries(m[1]) < 3) newVersion = m[1];
+      }).catch(function () {});
+  }
+  // Only between things: no call, no message or reminder on screen, nothing being read aloud,
+  // and the last check-in worked (so the reload won't land on a "no connection" page)
+  function quietMoment() {
+    return !callUi && !reminder && overlay.hidden && $('msgcard').hidden && $('remind').hidden && failures === 0 &&
+      !(window.speechSynthesis && speechSynthesis.speaking);
+  }
+  function maybeUpdate() {
+    if (!newVersion || !quietMoment()) return;
+    try { localStorage.setItem('rr_update', JSON.stringify({ v: newVersion, n: updateTries(newVersion) + 1 })); } catch (e) {}
+    var q = new URLSearchParams(location.search);
+    q.set('v', newVersion);              // a new address, so the tablet can't reuse its saved copy
+    location.replace(location.pathname + '?' + q.toString());
+  }
+  setTimeout(checkForUpdate, 60000);
+  setInterval(checkForUpdate, UPDATE_CHECK);
+  setInterval(maybeUpdate, 15000);
+
   // ----- Start -----
   if (VIEW) {
     document.body.classList.add('viewing');
