@@ -57,6 +57,15 @@
 
   .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; padding: 22px 26px; }
   .today h2 { margin: 0; font-size: 40px; font-weight: 800; }
+  .todaybar { display: flex; align-items: center; gap: 16px; }
+  .readbtn { margin-left: auto; display: flex; align-items: center; gap: 12px; height: 66px; padding: 0 24px 0 12px; white-space: nowrap;
+    border-radius: 18px; border: 3px solid var(--s-call); background: var(--s-call-soft); color: var(--s-ink); font: 800 30px var(--font); cursor: pointer;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, .18); -webkit-tap-highlight-color: transparent; }
+  .readbtn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0, 0, 0, .18); }
+  .readbtn .ic { width: 46px; height: 46px; border-radius: 50%; background: var(--s-call); color: #fff; display: grid; place-items: center; flex: none; }
+  .readbtn .ic svg { width: 30px; height: 30px; }
+  .readbtn.on { background: var(--s-call); color: #fff; }
+  .readbtn.on .ic { background: #fff; color: var(--s-call); }
   .events { flex: 1; min-height: 0; overflow: hidden; display: grid; align-content: start; gap: 4px; }
   .allday { font-size: 30px; font-weight: 700; }
   .who { font-weight: 800; }
@@ -176,7 +185,10 @@
     <div class="col">
       <div class="card today">
         <div id="mstrip"></div>
-        <h2 id="todayHead">Today</h2>
+        <div class="todaybar">
+          <h2 id="todayHead">Today</h2>
+          <button class="readbtn" id="readDay" type="button"><span class="ic" id="readIc"></span><span id="readLabel">Read my day</span></button>
+        </div>
         <div id="allday"></div>
         <div class="events" id="events"></div>
         <div class="tomorrow" id="tomorrow"></div>
@@ -427,6 +439,7 @@
   function isQuiet() { var n = pacific().mins; return n >= QUIET_FROM || n < QUIET_UNTIL; }
 
   function announceMsg(m, withChime) {
+    stopReading();
     if (withChime) softChime();
     setTimeout(function () { speak('New message from ' + m.from + '. ' + m.text); }, withChime ? 1300 : 0);
   }
@@ -558,6 +571,8 @@
   var REMIND_MIN = 15;              // minutes before an appointment
   var REMIND_RIDE_MIN = 30;         // minutes before a ride pickup
   var REPEAT_AFTER = 5 * 60000;     // say it once more if nobody taps OK
+  var REMIND_DINGS = 3;             // dings before a reminder is read out
+  var DING_GAP = 2;                 // seconds between dings
   var QUIET_FROM = 22 * 60, QUIET_UNTIL = 6 * 60;   // silent 10 PM to 6 AM
   var reminder = null, memReminded = {};
 
@@ -608,11 +623,12 @@
     } catch (e) { /* the banner still shows */ }
   }
 
-  function softChime() {
+  function softChime(times) {
     if (VIEW) return;
     try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
-      [[523, 0], [784, .4]].forEach(function (n) {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)(), notes = [];
+      for (var k = 0; k < (times || 1); k++) notes.push([523, k * DING_GAP], [784, k * DING_GAP + .4]);
+      notes.forEach(function (n) {
         var o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + n[1];
         o.frequency.value = n[0]; o.type = 'sine';
         g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.22, t + .04); g.gain.exponentialRampToValueAtTime(.001, t + 1);
@@ -622,8 +638,9 @@
   }
 
   function announce(i, mins) {
-    softChime();
-    setTimeout(function () { speak(reminderText(i, mins)); }, 1300);
+    stopReading();
+    softChime(REMIND_DINGS);
+    setTimeout(function () { speak(reminderText(i, mins)); }, ((REMIND_DINGS - 1) * DING_GAP + 1.8) * 1000);
   }
 
   function checkReminders() {
@@ -668,8 +685,115 @@
     renderMessages();   // a message that waited for the reminder can show now
   }
 
+  // ----- "Read my day": reads what's left today (after 6:30 PM: tonight and tomorrow), slowly,
+  //       one sentence at a time with a pause between. Tap again to stop. -----
+  var SPEAKER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>';
+  var STOP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+  var READ_PAUSE = 1100;      // ms of quiet between sentences
+  var READ_RATE = 0.8;        // speaking speed where the page can set it (1 = normal)
+  var reading = null;         // { timers: [] } while reading
+
+  function clockText(mins) {
+    var h = Math.floor(mins / 60) % 24, m = mins % 60;
+    if (h === 12 && m === 0) return 'noon';
+    return (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? ' AM' : ' PM');
+  }
+  function itemSentences(i, now) {
+    var name = whoName(i), out;
+    var what = (i.ride && /^eskaton/i.test(i.title) ? 'the ' + i.title : spoken(i.title)).replace(/[,.\s]+$/, '');
+    if (i.ride) out = (i.s <= now ? 'Right now, ' : 'At ' + clockText(i.s) + ', ') + what + '.';
+    else out = (i.s <= now ? 'Right now, until ' + clockText(i.e) + ', ' : 'At ' + clockText(i.s) + ', ') +
+      (name ? 'for ' + name + ': ' : '') + what + '.';
+    var list = [out];
+    var detail = i.ride ? i.notes.filter(function (n) { return !/^Going to:/.test(n); })[0] : '';
+    if (detail) list.push(detail);
+    if (i.notes.some(function (n) { return /Comes to your apartment/.test(n); })) list.push('They are coming to your apartment.');
+    return list;
+  }
+  function daySentences() {
+    var p = pacific(), now = p.mins, cal = data.cal, say = [];
+    var hello = p.h < 12 ? 'Good morning.' : p.h < 17 ? 'Good afternoon.' : 'Good evening.';
+    say.push(hello, 'It is ' + p.weekday + ', ' + p.month + ' ' + p.day + '. The time is ' + clockText(now) + '.');
+    var timed = cal.today.filter(function (i) { return !i.allDay; });
+    var left = timed.filter(function (i) { return i.e > now; });
+    var allDay = cal.today.filter(function (i) { return i.allDay; });
+    var tm = (cal.tomorrow || []).filter(function (i) { return !i.allDay; });
+    var tmAll = (cal.tomorrow || []).filter(function (i) { return i.allDay; });
+    var titles = function (l) { return l.map(function (i) { return spoken(i.title); }).join(', and '); };
+    function addItems(list, max, at) {   // at: the time "right now" is measured against (-1 for tomorrow)
+      list.slice(0, max).forEach(function (i) { say.push.apply(say, itemSentences(i, at)); });
+      if (list.length > max) say.push('And ' + (list.length - max) + ' more.');
+    }
+
+    if (now >= EVENING_FROM) {
+      if (left.length) { say.push('Still on tonight:'); addItems(left, 4, now); }
+      var noon = new Date(Date.now() + (24 * 60 - pacific(true).mins + 12 * 60) * 60000);   // about noon tomorrow
+      say.push('Here is tomorrow, ' + cal.tomorrowName + ', ' + (cal.tomorrowDate || fmtTmDate.format(noon)) + '.');
+      if (tmAll.length) say.push('All day tomorrow: ' + titles(tmAll) + '.');
+      if (tm.length) addItems(tm, 8, -1);
+      else if (!tmAll.length) say.push('Nothing is scheduled tomorrow.');
+    } else {
+      if (allDay.length) say.push('All day today: ' + titles(allDay) + '.');
+      if (left.length) { say.push('Here is what is still on your schedule today.'); addItems(left, 8, now); }
+      else {
+        say.push(timed.length ? 'Everything on today\'s schedule is done.' : 'There is nothing on the schedule today.');
+        if (tm.length) say.push('Tomorrow, ' + cal.tomorrowName + ', the first thing is:', itemSentences(tm[0], -1)[0]);
+      }
+    }
+    say.push('That is all.');
+    return say;
+  }
+
+  function setReadButton(on) {
+    $('readDay').classList.toggle('on', on);
+    $('readIc').innerHTML = on ? STOP : SPEAKER;
+    $('readLabel').textContent = on ? 'Stop reading' : 'Read my day';
+  }
+  function stopReading() {
+    if (!reading) return;
+    reading.timers.forEach(clearTimeout);
+    reading = null;
+    try { if (window.fully && typeof fully.stopTextToSpeech === 'function') fully.stopTextToSpeech(); } catch (e) {}
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+    setReadButton(false);
+  }
+  function readMyDay() {
+    if (reading) return stopReading();
+    if (VIEW || callUi) return;
+    var say = data && data.cal ? daySentences() : ['The schedule is still loading. Please try again in a minute.'];
+    var me = reading = { timers: [] };
+    setReadButton(true);
+    function done() { if (reading === me) { reading = null; setReadButton(false); } }
+
+    if (window.fully && typeof fully.textToSpeech === 'function') {
+      // Fully can't say when it has finished a sentence, so each one is timed generously and queued
+      var at = 0;
+      say.forEach(function (text) {
+        me.timers.push(setTimeout(function () {
+          if (reading !== me) return;
+          try { fully.textToSpeech(text, 'en-US', '', true); } catch (e) { fully.textToSpeech(text); }
+        }, at));
+        at += text.split(/\s+/).length * 420 + 500 + READ_PAUSE;
+      });
+      me.timers.push(setTimeout(done, at));
+    } else if (window.speechSynthesis) {
+      speechSynthesis.cancel();
+      var n = 0;
+      (function next() {
+        if (reading !== me) return;
+        if (n >= say.length) return done();
+        var u = new SpeechSynthesisUtterance(say[n++]);
+        u.lang = 'en-US'; u.rate = READ_RATE;
+        u.onend = u.onerror = function () { me.timers.push(setTimeout(next, READ_PAUSE)); };
+        speechSynthesis.speak(u);
+      })();
+    } else done();
+  }
+  setReadButton(false);
+  $('readDay').addEventListener('click', readMyDay);
+
   // Lets Eric preview a reminder remotely (from the browser console)
-  window.rrScreen = { showReminder: showReminder, reminderText: reminderText };
+  window.rrScreen = { showReminder: showReminder, reminderText: reminderText, daySentences: function () { return daySentences(); } };
 
   function poll() {
     clearTimeout(pollTimer);
@@ -751,7 +875,7 @@
   }
 
   function incoming(c) {
-    clearTimers(); chime();
+    stopReading(); clearTimers(); chime();
     callUi = { id: c.id, name: c.name, color: c.color, phase: 'countdown', since: Date.now() };
     var left = COUNTDOWN;
     function draw() {
@@ -770,7 +894,7 @@
   function outgoing(to) {
     var f = data.family.filter(function (x) { return x.id === to; })[0];
     if (!f || callUi || VIEW) return;
-    clearTimers();
+    stopReading(); clearTimers();
     // A 3-second pause with a big Cancel, so a mistaken tap never rings anyone
     callUi = { id: null, name: f.name, color: f.color, phase: 'starting' };
     var left = 3;
@@ -903,7 +1027,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-16.083941';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-16.155722';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
@@ -922,7 +1046,7 @@
   // Only between things: no call, no message or reminder on screen, nothing being read aloud,
   // and the last check-in worked (so the reload won't land on a "no connection" page)
   function quietMoment() {
-    return !callUi && !reminder && overlay.hidden && $('msgcard').hidden && $('remind').hidden && failures === 0 &&
+    return !callUi && !reminder && !reading && overlay.hidden && $('msgcard').hidden && $('remind').hidden && failures === 0 &&
       !(window.speechSynthesis && speechSynthesis.speaking);
   }
   function maybeUpdate() {
