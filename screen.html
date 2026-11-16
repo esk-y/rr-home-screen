@@ -25,7 +25,7 @@
     --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", Verdana, "Segoe UI", sans-serif;
     position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0;
     background: var(--s-bg); color: var(--s-ink); font-family: var(--font);
-    display: grid; grid-template-columns: 384px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
+    display: grid; grid-template-columns: 334px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
     transition: background .6s, color .6s; user-select: none; -webkit-user-select: none;
   }
   .screen.night {
@@ -36,22 +36,22 @@
   .col { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
   .card { background: var(--s-panel); border-radius: 18px; padding: 20px 22px; }
   .clock { display: grid; gap: 2px; padding: 6px 1px 0; }
-  .time { font-size: 116px; font-weight: 800; line-height: 1; letter-spacing: -3px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .time small { font-size: 38px; letter-spacing: 0; margin-left: 8px; font-weight: 800; }
+  .time { font-size: 100px; font-weight: 800; line-height: 1; letter-spacing: -2.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .time small { font-size: 34px; letter-spacing: 0; margin-left: 8px; font-weight: 800; }
   .day { font-size: 58px; font-weight: 800; line-height: 1.05; margin-top: 16px; }
   .part { font-size: 46px; font-weight: 700; line-height: 1.1; }
-  .date { font-size: 50px; font-weight: 800; line-height: 1.1; margin-top: 10px; }
+  .date { font-size: 48px; font-weight: 800; line-height: 1.1; margin-top: 10px; }
   .date .yr { font-size: 40px; font-weight: 700; }
   .offline { font-size: 26px; font-weight: 700; color: var(--s-end); margin-top: 8px; }
   .label { font-size: 28px; font-weight: 800; color: var(--s-ink); }
   /* Call buttons: one big solid button per person, in that person's color, well spaced */
   .calls { display: grid; gap: 12px; margin-top: auto; }
-  .callbtn { --c: #2f6f9f; display: flex; align-items: center; gap: 20px; width: 100%; height: 108px; padding: 0 24px 0 18px;
+  .callbtn { --c: #2f6f9f; display: flex; align-items: center; gap: 16px; width: 100%; height: 108px; padding: 0 16px 0 14px; white-space: nowrap;
     border-radius: 24px; border: 0; cursor: pointer; text-align: left; background: var(--c); color: #fff; font: 800 42px var(--font);
     box-shadow: 0 5px 0 rgba(0, 0, 0, .28); -webkit-tap-highlight-color: transparent; }
   .callbtn:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0, 0, 0, .28); filter: brightness(.88); }
-  .callbtn .ic { width: 74px; height: 74px; border-radius: 50%; background: #fff; color: var(--c); display: grid; place-items: center; flex: none; }
-  .callbtn .ic svg { width: 46px; height: 46px; }
+  .callbtn .ic { width: 64px; height: 64px; border-radius: 50%; background: #fff; color: var(--c); display: grid; place-items: center; flex: none; }
+  .callbtn .ic svg { width: 40px; height: 40px; }
   .screen.night .callbtn { filter: brightness(.8); }
   .avatar { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 30px; color: #fff; }
 
