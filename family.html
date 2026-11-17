@@ -57,6 +57,7 @@
   .tstat.quiet::before { background: #c08a1e; }
   .tstat.offline { color: var(--end); font-weight: 700; }
   .tstat.offline::before { background: var(--end); }
+  .note.batwarn { color: var(--end); font-weight: 700; }
   [hidden] { display: none !important; }
 </style>
 <script src="https://unpkg.com/@daily-co/daily-js@0.94.0/dist/daily.js"></script>
@@ -86,6 +87,7 @@
     <p class="tstat" id="tstat">Checking the tablet…</p>
     <a class="screenlink" id="screenLink" href="#">See what their screen shows</a>
     <p class="note">A live, view-only copy. Nothing you tap there reaches the tablet. On a phone, turn it sideways.</p>
+    <p class="note" id="tbat"></p>
     <p class="note" id="tver"></p>
   </section>
 
@@ -164,6 +166,13 @@
       : 'Tablet hasn\'t checked in yet.';
     $('tstat').className = 'tstat ' + t.state;
     $('tstat').textContent = text;
+    var b = t.battery;
+    $('tbat').hidden = !b;
+    if (b) {
+      $('tbat').textContent = 'Battery: ' + b.level + '%' + (b.plugged === true ? ', plugged in' : b.plugged === false ? ', not plugged in' : '') +
+        (t.state === 'online' ? '.' : ' (as of ' + b.when + ').');
+      $('tbat').className = 'note' + (b.plugged === false ? ' batwarn' : '');
+    }
     renderVersion();
   }
 

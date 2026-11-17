@@ -282,9 +282,14 @@
       else if (age < offlineMinutes * 60000) { cls = 'warn'; txt = 'Tablet hasn\'t checked in for ' + Math.round(s / 60) + ' min'; }
       else { cls = 'bad'; txt = 'Tablet offline since ' + seenLabel(seenInfo.seen); }
     }
+    var b = seenInfo && seenInfo.battery, bat = '';
+    if (b) {
+      bat = 'Battery ' + b.level + '%' + (b.plugged === true ? ', plugged in' : b.plugged === false ? ', NOT plugged in' : '');
+      if (b.plugged === false && b.level <= 30 && !cls) cls = 'warn';
+    }
     var bar = $('viewbar');
     bar.className = 'viewbar' + (cls ? ' ' + cls : '');
-    var html = '<span class="dot"></span><span>' + esc(txt) + ' <span class="vo">· View only</span></span>' +
+    var html = '<span class="dot"></span><span>' + esc(txt) + (bat ? ' · ' + esc(bat) : '') + ' <span class="vo">· View only</span></span>' +
       '<a href="family.html?f=' + encodeURIComponent(FKEY) + '">My page</a>';
     if (bar.innerHTML !== html) bar.innerHTML = html;
   }
@@ -519,9 +524,24 @@
   });
 
   // ----- Talking to the backend -----
+  // Battery level and plugged-in state: from Fully when available, else the browser's battery API
+  var browserBattery = null;
+  if (!VIEW && navigator.getBattery) navigator.getBattery().then(function (b) { browserBattery = b; }).catch(function () {});
+  function batteryParams() {
+    try {
+      if (window.fully && typeof fully.getBatteryLevel === 'function') {
+        var lvl = Math.round(Number(fully.getBatteryLevel()));
+        var plug = typeof fully.isPlugged === 'function' ? (fully.isPlugged() ? '1' : '0') : '';
+        if (lvl >= 0 && lvl <= 100) return '&bat=' + lvl + '&plug=' + plug;
+      }
+    } catch (e) {}
+    if (browserBattery) return '&bat=' + Math.round(browserBattery.level * 100) + '&plug=' + (browserBattery.charging ? '1' : '0');
+    return '';
+  }
+
   function api(params) {
     var u = API + (API.indexOf('?') < 0 ? '?' : '&') + (VIEW ? 'f=' + encodeURIComponent(FKEY) : 'k=' + encodeURIComponent(KEY));
-    if (!VIEW) u += '&pv=' + encodeURIComponent(PAGE_VERSION);   // so family can see which version the tablet runs
+    if (!VIEW) u += '&pv=' + encodeURIComponent(PAGE_VERSION) + batteryParams();   // so family can see the version and battery
     Object.keys(params).forEach(function (k) { u += '&' + k + '=' + encodeURIComponent(params[k]); });
     return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok && j.error) throw new Error(j.error);
@@ -808,7 +828,7 @@
     api({ a: 'screen' }).then(function (d) {
       failures = 0; $('offline').hidden = true;
       if (VIEW) {
-        seenInfo = { seen: d.seen || 0, age: d.seen ? Math.max(0, d.now - d.seen) : 0, fetchedAt: Date.now() };
+        seenInfo = { seen: d.seen || 0, age: d.seen ? Math.max(0, d.now - d.seen) : 0, fetchedAt: Date.now(), battery: d.battery || null };
         offlineMinutes = d.offlineMinutes || 60;
       } else {
         (d.alerts || []).forEach(function (a) { sendAlert(a); });   // e.g. "tablet is back online"
@@ -1034,7 +1054,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-16.161533';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-16.173717';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
