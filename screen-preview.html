@@ -43,6 +43,7 @@
   .date { font-size: 48px; font-weight: 800; line-height: 1.1; margin-top: 10px; }
   .date .yr { font-size: 40px; font-weight: 700; }
   .offline { font-size: 26px; font-weight: 700; color: var(--s-end); margin-top: 8px; }
+  .clock:has(#offline:not([hidden])) .yr { display: none; }   /* room for the notice without pushing the call buttons down */
   .label { font-size: 28px; font-weight: 800; color: var(--s-ink); }
   /* Call buttons: one big solid button per person, in that person's color, well spaced */
   .calls { display: grid; gap: 12px; margin-top: auto; }
@@ -88,10 +89,31 @@
   .sub { font-size: 28px; font-weight: 800; }
   .quiet { font-size: 34px; font-weight: 700; padding: 6px 4px; }
   .more { font-size: 28px; font-weight: 700; padding: 0 4px; }
-  .tomorrow { padding-top: 12px; border-top: 3px solid var(--s-line); display: grid; gap: 2px; }
-  .tomorrow .row .t { font-size: 30px; }
-  .tomorrow .row .what { font-size: 30px; }
-  .tomorrow .quiet { font-size: 30px; }
+  /* A busy day: slightly smaller rows so everything still fits */
+  .events.tight .row { padding: 2px 4px; }
+  .events.tight .row .t { font-size: 28px; }
+  .events.tight .row .what { font-size: 30px; }
+  .events.tight .nextcard { padding: 8px 20px 10px; }
+  .events.tight .nextcard .nk { font-size: 28px; }
+  .events.tight .nextcard .nt { font-size: 38px; }
+  .events.tight .nextcard .nw { font-size: 38px; }
+  .events.tight .nextcard .nn { font-size: 28px; }
+
+  /* Tomorrow button (daytime) and its pop-up */
+  .tmbar { display: flex; justify-content: flex-end; padding-top: 4px; }
+  .tmbtn { display: flex; align-items: center; gap: 14px; height: 80px; padding: 0 32px 0 14px; white-space: nowrap;
+    border-radius: 20px; border: 3px solid var(--s-ink); background: var(--s-panel); color: var(--s-ink); font: 800 36px var(--font); cursor: pointer;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, .18); -webkit-tap-highlight-color: transparent; }
+  .tmbtn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0, 0, 0, .18); }
+  .tmbtn .ic { width: 54px; height: 54px; border-radius: 50%; background: var(--both); color: #fff; display: grid; place-items: center; flex: none; }
+  .screen.night .tmbtn .ic { color: #0a0f13; }
+  .tmbtn .ic svg { width: 32px; height: 32px; }
+  .remind.tmpop .box { width: 1160px; max-width: 1160px; height: 730px; box-sizing: border-box; padding: 28px 44px 30px; gap: 12px;
+    grid-template-rows: auto minmax(0, 1fr) auto; justify-items: stretch; text-align: left; }
+  .tmpop .tmlist { min-height: 0; overflow: hidden; display: grid; align-content: start; }
+  .tmpop .btns { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-top: 8px; }
+  .tmpop .readbtn { margin-left: 0; height: 84px; font-size: 34px; padding-right: 30px; }
+  .tmpop .ok { margin-top: 0; padding: 18px 110px; }
 
   /* Evening view (6:30 PM to midnight): tomorrow, large and with details */
   .tonight { display: grid; gap: 4px; padding-bottom: 12px; border-bottom: 4px solid var(--s-line); margin-bottom: 4px; }
@@ -175,8 +197,9 @@
       <div class="clock">
         <div class="time" id="time"></div>
         <div class="day" id="day"></div>
+        <div class="part" id="part"></div>
         <div class="date" id="date"></div>
-        <div class="offline" id="offline" hidden>Reconnecting… showing the last saved schedule.</div>
+        <div class="offline" id="offline" hidden>Reconnecting… schedule may be out of date.</div>
       </div>
       <div class="calls">
         <div id="contacts" style="display:grid;gap:18px"></div>
@@ -187,13 +210,16 @@
         <div id="mstrip"></div>
         <div class="todaybar">
           <h2 id="todayHead">Today</h2>
-          <button class="readbtn" id="readDay" type="button"><span class="ic" id="readIc"></span><span id="readLabel">Read my day</span></button>
+          <button class="readbtn" id="readDay" type="button"><span class="ic"></span><span class="lbl">Read my day</span></button>
         </div>
         <div id="allday"></div>
         <div class="events" id="events"></div>
-        <div class="tomorrow" id="tomorrow"></div>
+        <div class="tmbar" id="tmBar">
+          <button class="tmbtn" id="tmBtn" type="button"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>Tomorrow</button>
+        </div>
       </div>
     </div>
+    <div class="remind tmpop" id="tmpop" hidden></div>
     <div class="remind" id="msgcard" hidden></div>
     <div class="remind" id="remind" hidden></div>
     <div class="overlay" id="overlay" hidden></div>
@@ -248,7 +274,7 @@
     if (fake && !real) { h = Number(fake[1]) % 24; m = Number(fake[2]); }
     return { h: h, m: m, mins: h * 60 + m, weekday: o.weekday, month: o.month, day: o.day, year: o.year };
   }
-  function partOf(h) { return h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 20 ? 'Evening' : 'Night'; }
+  function partOf(h) { return h < 5 ? 'Night' : h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 20 ? 'Evening' : 'Night'; }
 
   var lastMinute = -1;
   function tick() {
@@ -256,6 +282,7 @@
     var p = pacific();
     $('time').innerHTML = (p.h % 12 || 12) + ':' + String(p.m).padStart(2, '0') + '<small>' + (p.h < 12 ? 'AM' : 'PM') + '</small>';
     $('day').textContent = p.weekday;
+    $('part').textContent = partOf(p.h);
     $('date').innerHTML = esc(p.month + ' ' + p.day) + '<br><span class="yr">' + esc(p.year) + '</span>';
     screen.classList.toggle('night', p.h >= 20 || p.h < 6);
     if (p.mins !== lastMinute) { lastMinute = p.mins; renderEvents(); checkReminders(); renderMessages(); }
@@ -326,18 +353,19 @@
     var evening = now >= EVENING_FROM;
     $('todayHead').hidden = evening;
     $('allday').hidden = evening;
-    $('tomorrow').hidden = evening;
+    $('tmBar').hidden = evening;   // in the evening the whole panel is tomorrow already
     if (evening) return renderEvening(now, cal);
     var allDay = cal.today.filter(function (i) { return i.allDay; });
     var timed = cal.today.filter(function (i) { return !i.allDay; });
 
     $('allday').innerHTML = allDay.length ? '<div class="allday">All day: ' + allDay.map(whoTitle).join(' · ') + '</div>' : '';
 
-    var done = timed.filter(function (i) { return i.e <= now; });
-    var rest = timed.filter(function (i) { return i.e > now; });   // [0] is now or next
+    // A van ride and the appointment it goes to, at the same time, show once (as the ride)
+    var done = withoutRideTargets(timed.filter(function (i) { return i.e <= now; }));
+    var rest = withoutRideTargets(timed.filter(function (i) { return i.e > now; }));   // [0] is now or next
     var later = rest.slice(1);
 
-    // Finished item (if room), the big Next card, then a few later items by time and title
+    // Finished item (if room), the big Next card, then everything else later today
     function draw(keepDone, n) {
       if (!timed.length) return allDay.length ? '' : '<div class="quiet">Nothing scheduled today. Enjoy a quiet day.</div>';
       var html = keepDone && done.length ? rowHtml(done[done.length - 1], 'done') : '';
@@ -349,33 +377,52 @@
       return html;
     }
 
-    $('tomorrow').innerHTML = '<div class="label">Tomorrow, ' + esc(cal.tomorrowName) + '</div>' +
-      (tmTimed(cal).length ? tmTimed(cal).slice(0, 2).map(function (ev) { return rowHtml(ev); }).join('')
-        : '<div class="quiet">Nothing scheduled.</div>');
-
-    // Show as much as fits: drop the finished item first, then later items
-    var box = $('events'), keepDone = true, n = Math.min(4, later.length);
-    box.className = 'events';
-    box.innerHTML = draw(keepDone, n);
+    // Show it all if it fits: drop the finished item first, then use smaller rows, and only then leave items off
+    var box = $('events'), keepDone = true, tight = false, n = later.length;
+    function put() { box.className = 'events' + (tight ? ' tight' : ''); box.innerHTML = draw(keepDone, n); }
+    put();
     while (box.scrollHeight > box.clientHeight + 2) {
       if (keepDone && done.length) keepDone = false;
+      else if (!tight) tight = true;
       else if (n > 0) n--;
       else break;
-      box.innerHTML = draw(keepDone, n);
+      put();
     }
   }
 
-  // The small Tomorrow section leaves out rides; the evening view includes them
-  function tmTimed(cal) { return (cal.tomorrow || []).filter(function (i) { return !i.allDay && !i.ride; }); }
+  // ----- Tomorrow: shown in the evening view and in the daytime Tomorrow pop-up -----
+  function tmDateText(cal) {
+    var noon = new Date(Date.now() + (24 * 60 - pacific(true).mins + 12 * 60) * 60000);   // about noon tomorrow
+    return cal.tomorrowDate || fmtTmDate.format(noon);
+  }
+  function tmItems(cal) {
+    return {
+      allDay: (cal.tomorrow || []).filter(function (i) { return i.allDay; }),
+      timed: withoutRideTargets((cal.tomorrow || []).filter(function (i) { return !i.allDay; }))
+    };
+  }
+  function tmHeadHtml(cal) {
+    return '<div class="tmhead"><span class="tag">Tomorrow</span><span class="tday">' +
+      esc(cal.tomorrowName) + ', ' + esc(tmDateText(cal)) + '</span></div>';
+  }
+  // Tomorrow's items: the first `withNotes` with their details, at most `count` of them
+  function tmRowsHtml(cal, count, withNotes) {
+    var t = tmItems(cal), tm = t.timed;
+    if (!tm.length && !t.allDay.length) return '<div class="tmquiet">Nothing scheduled tomorrow.</div>';
+    var html = t.allDay.length ? '<div class="tmall">All day: ' + t.allDay.map(whoTitle).join(' · ') + '</div>' : '';
+    html += tm.slice(0, count).map(function (ev, i) {
+      var notes = i < withNotes ? ev.notes.slice(0, 3) : [];
+      return '<div class="trow"><div class="t">' + esc(ev.time) + '</div><div><div class="what">' + whoTitle(ev) + '</div>' +
+        (notes.length ? '<div class="nn">' + notes.map(esc).join('<br>') + '</div>' : '') + '</div></div>';
+    }).join('');
+    if (tm.length > count) html += '<div class="more">and ' + (tm.length - count) + ' more tomorrow</div>';
+    return html;
+  }
 
   // ----- Evening: tomorrow in detail. Anything still going on tonight stays on top, above a line -----
   function renderEvening(now, cal) {
-    var tonight = cal.today.filter(function (i) { return !i.allDay && i.e > now; });
-    var tmAll = (cal.tomorrow || []).filter(function (i) { return i.allDay; });
-    var tm = (cal.tomorrow || []).filter(function (i) { return !i.allDay; });
-    var noon = new Date(Date.now() + (24 * 60 - pacific(true).mins + 12 * 60) * 60000);   // about noon tomorrow
-    var head = '<div class="tmhead"><span class="tag">Tomorrow</span><span class="tday">' +
-      esc(cal.tomorrowName) + ', ' + esc(cal.tomorrowDate || fmtTmDate.format(noon)) + '</span></div>';
+    var tonight = withoutRideTargets(cal.today.filter(function (i) { return !i.allDay && i.e > now; }));
+    var tmCount = tmItems(cal).timed.length;
 
     function tonightHtml(extra) {
       if (!tonight.length) return '';
@@ -385,22 +432,11 @@
         tonight.slice(1, 1 + extra).map(function (ev) { return rowHtml(ev); }).join('') +
         (tonight.length - 1 > extra ? '<div class="more">and ' + (tonight.length - 1 - extra) + ' more tonight</div>' : '') + '</div>';
     }
-    function rowsHtml(count, withNotes) {
-      if (!tm.length && !tmAll.length) return '<div class="tmquiet">Nothing scheduled tomorrow.</div>';
-      var html = tmAll.length ? '<div class="tmall">All day: ' + tmAll.map(whoTitle).join(' · ') + '</div>' : '';
-      html += tm.slice(0, count).map(function (ev, i) {
-        var notes = i < withNotes ? ev.notes.slice(0, 3) : [];
-        return '<div class="trow"><div class="t">' + esc(ev.time) + '</div><div><div class="what">' + whoTitle(ev) + '</div>' +
-          (notes.length ? '<div class="nn">' + notes.map(esc).join('<br>') + '</div>' : '') + '</div></div>';
-      }).join('');
-      if (tm.length > count) html += '<div class="more">and ' + (tm.length - count) + ' more tomorrow</div>';
-      return html;
-    }
 
     // Biggest text that fits; then fewer notes, fewer tonight rows, fewer tomorrow items
     var box = $('events'), sizes = ['ev-xl', 'ev-lg', 'ev-md'];
-    var size = 0, extra = Math.min(2, Math.max(0, tonight.length - 1)), count = tm.length, withNotes = tm.length;
-    function draw() { box.className = 'events ' + sizes[size]; box.innerHTML = tonightHtml(extra) + head + rowsHtml(count, withNotes); }
+    var size = 0, extra = Math.min(2, Math.max(0, tonight.length - 1)), count = tmCount, withNotes = tmCount;
+    function draw() { box.className = 'events ' + sizes[size]; box.innerHTML = tonightHtml(extra) + tmHeadHtml(cal) + tmRowsHtml(cal, count, withNotes); }
     draw();
     while (box.scrollHeight > box.clientHeight + 2) {
       if (size < sizes.length - 1) size++;
@@ -411,6 +447,45 @@
       draw();
     }
   }
+
+  // ----- Daytime Tomorrow pop-up: tomorrow in detail, Read it to me, Close. Closes itself after 5 minutes,
+  //       and whenever a reminder, message or call needs the screen -----
+  var TOMORROW_OPEN = 5 * 60000;
+  var tmTimer = null;
+  function openTomorrow() {
+    if (VIEW || callUi || !data || !data.cal) return;
+    stopReading();
+    var cal = data.cal, pop = $('tmpop');
+    pop.innerHTML = '<div class="box">' + tmHeadHtml(cal) + '<div class="tmlist" id="tmlist"></div>' +
+      '<div class="btns"><button class="readbtn" id="tmRead" type="button"><span class="ic"></span><span class="lbl"></span></button>' +
+      '<button class="ok" id="tmClose" type="button">Close</button></div></div>';
+    pop.hidden = false;
+    setReadButton('tmRead', false);
+    var box = $('tmlist'), sizes = ['ev-xl', 'ev-lg', 'ev-md'], n = tmItems(cal).timed.length;
+    var size = 0, count = n, withNotes = n;
+    function draw() { box.className = 'tmlist ' + sizes[size]; box.innerHTML = tmRowsHtml(cal, count, withNotes); }
+    draw();
+    while (box.scrollHeight > box.clientHeight + 2) {
+      if (size < sizes.length - 1) size++;
+      else if (withNotes > 0) withNotes--;
+      else if (count > 1) count--;
+      else break;
+      draw();
+    }
+    clearTimeout(tmTimer);
+    tmTimer = setTimeout(closeTomorrow, TOMORROW_OPEN);
+  }
+  function closeTomorrow() {
+    clearTimeout(tmTimer);
+    if (reading && reading.btn === 'tmRead') stopReading();
+    $('tmpop').hidden = true;
+    $('tmpop').innerHTML = '';
+  }
+  $('tmBtn').addEventListener('click', openTomorrow);
+  $('tmpop').addEventListener('click', function (e) {
+    if (e.target === $('tmpop') || e.target.closest('#tmClose')) return closeTomorrow();   // a tap outside the box closes it too
+    if (e.target.closest('#tmRead')) readAloud('tmRead', function () { return tomorrowSentences('Tomorrow is '); });
+  });
 
   // ----- Contacts and messages -----
   var CAM = '<svg class="cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg>';
@@ -468,6 +543,7 @@
     if (m && !msgShownAt[m.id] && !isQuiet() && !callUi && !reminder) {
       msgShownAt[m.id] = Date.now();
       saveShown();
+      closeTomorrow();
       announceMsg(m, true);
     }
     drawMessages(list);
@@ -678,6 +754,7 @@
 
   function showReminder(i, mins) {
     var key = reminderKey(i), name = whoName(i);
+    closeTomorrow();
     markReminded(key);
     if (reminder) clearTimeout(reminder.repeat);
     var detail = i.ride ? i.notes.filter(function (n) { return !/^Going to:/.test(n); })[0] : '';
@@ -741,6 +818,25 @@
     if (i.notes.some(function (n) { return /Comes to your apartment/.test(n); })) list.push('They are coming to your apartment.');
     return list;
   }
+  // Adds the spoken lines for a list of items. at: the time "right now" is measured against (-1 for tomorrow)
+  function addItems(say, list, max, at) {
+    list = withoutRideTargets(list);
+    list.slice(0, max).forEach(function (i) { say.push.apply(say, itemSentences(i, at)); });
+    if (list.length > max) say.push('And ' + (list.length - max) + ' more.');
+  }
+  function titlesText(l) { return l.map(function (i) { return spoken(i.title); }).join(', and '); }
+
+  // Tomorrow, read aloud (the evening read-out and the Tomorrow pop-up)
+  function tomorrowSentences(intro) {
+    var cal = data.cal, say = [], t = tmItems(cal);
+    say.push(intro + cal.tomorrowName + ', ' + tmDateText(cal) + '.');
+    if (t.allDay.length) say.push('All day tomorrow: ' + titlesText(t.allDay) + '.');
+    if (t.timed.length) addItems(say, t.timed, 8, -1);
+    else if (!t.allDay.length) say.push('Nothing is scheduled tomorrow.');
+    say.push('That is all.');
+    return say;
+  }
+
   function daySentences() {
     var p = pacific(), now = p.mins, cal = data.cal, say = [];
     var hello = p.h < 12 ? 'Good morning.' : p.h < 17 ? 'Good afternoon.' : 'Good evening.';
@@ -748,61 +844,55 @@
     var timed = cal.today.filter(function (i) { return !i.allDay; });
     var left = timed.filter(function (i) { return i.e > now; });
     var allDay = cal.today.filter(function (i) { return i.allDay; });
-    var tm = (cal.tomorrow || []).filter(function (i) { return !i.allDay; });
-    var tmAll = (cal.tomorrow || []).filter(function (i) { return i.allDay; });
-    var titles = function (l) { return l.map(function (i) { return spoken(i.title); }).join(', and '); };
-    function addItems(list, max, at) {   // at: the time "right now" is measured against (-1 for tomorrow)
-      list = withoutRideTargets(list);
-      list.slice(0, max).forEach(function (i) { say.push.apply(say, itemSentences(i, at)); });
-      if (list.length > max) say.push('And ' + (list.length - max) + ' more.');
-    }
 
     if (now >= EVENING_FROM) {
-      if (left.length) { say.push('Still on tonight:'); addItems(left, 4, now); }
-      var noon = new Date(Date.now() + (24 * 60 - pacific(true).mins + 12 * 60) * 60000);   // about noon tomorrow
-      say.push('Here is tomorrow, ' + cal.tomorrowName + ', ' + (cal.tomorrowDate || fmtTmDate.format(noon)) + '.');
-      if (tmAll.length) say.push('All day tomorrow: ' + titles(tmAll) + '.');
-      if (tm.length) addItems(tm, 8, -1);
-      else if (!tmAll.length) say.push('Nothing is scheduled tomorrow.');
-    } else {
-      if (allDay.length) say.push('All day today: ' + titles(allDay) + '.');
-      if (left.length) { say.push('Here is what is still on your schedule today.'); addItems(left, 8, now); }
-      else {
-        say.push(timed.length ? 'Everything on today\'s schedule is done.' : 'There is nothing on the schedule today.');
-        if (tm.length) say.push('Tomorrow, ' + cal.tomorrowName + ', the first thing is:', itemSentences(tm[0], -1)[0]);
-      }
+      if (left.length) { say.push('Still on tonight:'); addItems(say, left, 4, now); }
+      return say.concat(tomorrowSentences('Here is tomorrow, '));
+    }
+    // Daytime: today only. Tomorrow is behind the Tomorrow button.
+    if (allDay.length) say.push('All day today: ' + titlesText(allDay) + '.');
+    if (left.length) { say.push('Here is what is still on your schedule today.'); addItems(say, left, 8, now); }
+    else {
+      say.push(timed.length ? 'Everything on today\'s schedule is done.' : 'There is nothing on the schedule today.');
+      say.push('To see tomorrow, tap the Tomorrow button.');
     }
     say.push('That is all.');
     return say;
   }
 
-  function setReadButton(on) {
-    $('readDay').classList.toggle('on', on);
-    $('readIc').innerHTML = on ? STOP : SPEAKER;
-    $('readLabel').textContent = on ? 'Stop reading' : 'Read my day';
+  // Two read-aloud buttons share this: Read my day, and Read it to me in the Tomorrow pop-up
+  var READ_LABELS = { readDay: 'Read my day', tmRead: 'Read it to me' };
+  function setReadButton(id, on) {
+    var b = $(id); if (!b) return;
+    b.classList.toggle('on', on);
+    b.querySelector('.ic').innerHTML = on ? STOP : SPEAKER;
+    b.querySelector('.lbl').textContent = on ? 'Stop reading' : READ_LABELS[id];
   }
   function stopReading() {
     if (!reading) return;
-    reading.timers.forEach(clearTimeout);
+    var r = reading;
     reading = null;
+    r.timers.forEach(clearTimeout);
     try { if (window.fully && typeof fully.stopTextToSpeech === 'function') fully.stopTextToSpeech(); } catch (e) {}
     try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
-    setReadButton(false);
+    setReadButton(r.btn, false);
   }
-  function readMyDay() {
-    if (reading) return stopReading();
+  // Tapping the button that's reading stops it
+  function readAloud(id, sentences) {
+    var was = reading && reading.btn;
+    if (was) { stopReading(); if (was === id) return; }
     if (VIEW || callUi) return;
-    var say = data && data.cal ? daySentences() : ['The schedule is still loading. Please try again in a minute.'];
-    var me = reading = { timers: [] };
-    setReadButton(true);
-    function done() { if (reading === me) { reading = null; setReadButton(false); } }
+    var say = data && data.cal ? sentences() : ['The schedule is still loading. Please try again in a minute.'];
+    var me = reading = { timers: [], btn: id };
+    setReadButton(id, true);
+    function done() { if (reading === me) { reading = null; setReadButton(id, false); } }
 
     if (window.fully && typeof fully.textToSpeech === 'function') {
       // Fully's plain one-argument call (the one reminders use; the locale/queue form failed on the
       // tablet). Read as one piece so nothing gets cut off; the tablet's speech-rate setting sets the pace.
       var all = say.join(' ');
       try { fully.textToSpeech(all); } catch (e) {}
-      me.timers.push(setTimeout(done, all.split(/\s+/).length * 450 + 2000));   // when the button goes back to "Read my day"
+      me.timers.push(setTimeout(done, all.split(/\s+/).length * 450 + 2000));   // when the button goes back to its label
     } else if (window.speechSynthesis) {
       speechSynthesis.cancel();
       var n = 0;
@@ -816,11 +906,12 @@
       })();
     } else done();
   }
-  setReadButton(false);
-  $('readDay').addEventListener('click', readMyDay);
+  setReadButton('readDay', false);
+  $('readDay').addEventListener('click', function () { readAloud('readDay', daySentences); });
 
   // Lets Eric preview a reminder remotely (from the browser console)
-  window.rrScreen = { showReminder: showReminder, reminderText: reminderText, daySentences: function () { return daySentences(); } };
+  window.rrScreen = { showReminder: showReminder, reminderText: reminderText, daySentences: function () { return daySentences(); },
+    openTomorrow: openTomorrow, tomorrowSentences: function () { return tomorrowSentences('Tomorrow is '); } };
 
   function poll() {
     clearTimeout(pollTimer);
@@ -902,7 +993,7 @@
   }
 
   function incoming(c) {
-    stopReading(); clearTimers(); chime();
+    closeTomorrow(); stopReading(); clearTimers(); chime();
     callUi = { id: c.id, name: c.name, color: c.color, phase: 'countdown', since: Date.now() };
     var left = COUNTDOWN;
     function draw() {
@@ -1054,7 +1145,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-16.173717';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-17.085641';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
@@ -1073,7 +1164,7 @@
   // Only between things: no call, no message or reminder on screen, nothing being read aloud,
   // and the last check-in worked (so the reload won't land on a "no connection" page)
   function quietMoment() {
-    return !callUi && !reminder && !reading && overlay.hidden && $('msgcard').hidden && $('remind').hidden && failures === 0 &&
+    return !callUi && !reminder && !reading && overlay.hidden && $('msgcard').hidden && $('remind').hidden && $('tmpop').hidden && failures === 0 &&
       !(window.speechSynthesis && speechSynthesis.speaking);
   }
   function maybeUpdate() {
