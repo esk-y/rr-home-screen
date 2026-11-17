@@ -25,7 +25,7 @@
     --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", Verdana, "Segoe UI", sans-serif;
     position: absolute; top: 0; left: 0; width: 1280px; height: 800px; transform-origin: 0 0;
     background: var(--s-bg); color: var(--s-ink); font-family: var(--font);
-    display: grid; grid-template-columns: 334px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 22px; padding: 26px; box-sizing: border-box;
+    display: grid; grid-template-columns: 334px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 16px; padding: 14px; box-sizing: border-box;
     transition: background .6s, color .6s; user-select: none; -webkit-user-select: none;
   }
   .screen.night {
@@ -56,7 +56,7 @@
   .screen.night .callbtn { filter: brightness(.8); }
   .avatar { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 30px; color: #fff; }
 
-  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; padding: 22px 26px; }
+  .today { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; padding: 16px 20px; }
   .today h2 { margin: 0; font-size: 40px; font-weight: 800; }
   .todaybar { display: flex; align-items: center; gap: 16px; }
   .readbtn { margin-left: auto; display: flex; align-items: center; gap: 12px; height: 66px; padding: 0 24px 0 12px; white-space: nowrap;
@@ -101,13 +101,13 @@
 
   /* Tomorrow button (daytime) and its pop-up */
   .tmbar { display: flex; justify-content: flex-end; padding-top: 4px; }
-  .tmbtn { display: flex; align-items: center; gap: 14px; height: 80px; padding: 0 32px 0 14px; white-space: nowrap;
-    border-radius: 20px; border: 3px solid var(--s-ink); background: var(--s-panel); color: var(--s-ink); font: 800 36px var(--font); cursor: pointer;
+  .tmbtn { display: flex; align-items: center; gap: 12px; height: 66px; padding: 0 24px 0 12px; white-space: nowrap;
+    border-radius: 18px; border: 3px solid var(--s-ink); background: var(--s-panel); color: var(--s-ink); font: 800 30px var(--font); cursor: pointer;
     box-shadow: 0 4px 0 rgba(0, 0, 0, .18); -webkit-tap-highlight-color: transparent; }
   .tmbtn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0, 0, 0, .18); }
-  .tmbtn .ic { width: 54px; height: 54px; border-radius: 50%; background: var(--both); color: #fff; display: grid; place-items: center; flex: none; }
+  .tmbtn .ic { width: 46px; height: 46px; border-radius: 50%; background: var(--both); color: #fff; display: grid; place-items: center; flex: none; }
   .screen.night .tmbtn .ic { color: #0a0f13; }
-  .tmbtn .ic svg { width: 32px; height: 32px; }
+  .tmbtn .ic svg { width: 30px; height: 30px; }
   .remind.tmpop .box { width: 1160px; max-width: 1160px; height: 730px; box-sizing: border-box; padding: 28px 44px 30px; gap: 12px;
     grid-template-rows: auto minmax(0, 1fr) auto; justify-items: stretch; text-align: left; }
   .tmpop .tmlist { min-height: 0; overflow: hidden; display: grid; align-content: start; }
@@ -1145,7 +1145,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-17.085641';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-17.091050';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
