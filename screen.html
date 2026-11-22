@@ -1094,7 +1094,30 @@
     });
   }
 
+  // The volume buttons are locked by Fully, so the screen sets call loudness itself.
+  // Android plays a video call on its call-volume stream (0), and sometimes on media (3).
+  // Both go to full for the call; media goes back afterwards so reminders and "Read my day"
+  // stay at their usual level. The call stream is only used for calls, so it can stay at full.
+  var mediaBefore = null;
+  function callVolume(on) {
+    try {
+      if (!window.fully || typeof fully.setAudioVolume !== 'function') return;
+      if (on) {
+        if (mediaBefore === null) {
+          var m = typeof fully.getAudioVolume === 'function' ? Number(fully.getAudioVolume(3)) : NaN;
+          mediaBefore = m >= 0 && m <= 100 ? Math.round(m) : 70;   // 70 = Fully's saved setting
+        }
+        fully.setAudioVolume(100, 0);
+        fully.setAudioVolume(100, 3);
+      } else if (mediaBefore !== null) {
+        fully.setAudioVolume(mediaBefore, 3);
+        mediaBefore = null;
+      }
+    } catch (e) { console.error('Volume change failed', e); }
+  }
+
   function stopVideo() {
+    callVolume(false);
     if (!co) return;
     var x = co; co = null;
     try { x.destroy().catch(function () {}); } catch (e) {}
@@ -1114,6 +1137,7 @@
       '<button class="hangup" id="hangup">' + PHONE + 'Hang up</button></div>';
     $('hangup').onclick = hangUp;
     if (hasVideo) {
+      callVolume(true);
       startVideo(c);
       // If the other person never shows up (or video never starts), give up after 2 minutes
       later(function () { if (callUi && callUi.phase === 'live' && remoteCount() === 0) hangUp(); }, 120000);
@@ -1145,7 +1169,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-17.091050';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-21.174018';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
