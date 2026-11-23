@@ -619,11 +619,20 @@
     var u = API + (API.indexOf('?') < 0 ? '?' : '&') + (VIEW ? 'f=' + encodeURIComponent(FKEY) : 'k=' + encodeURIComponent(KEY));
     if (!VIEW) u += '&pv=' + encodeURIComponent(PAGE_VERSION) + batteryParams();   // so family can see the version and battery
     Object.keys(params).forEach(function (k) { u += '&' + k + '=' + encodeURIComponent(params[k]); });
-    return fetch(u, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j.ok && j.error) throw new Error(j.error);
-      return j;
-    });
+    // Google sometimes never answers a request (seen 2026-11-23: about 1 in 3 hung for minutes).
+    // Without a time limit one such request froze check-ins for an hour, so give up after 30 seconds.
+    var ctl = window.AbortController ? new AbortController() : null;
+    var limit = ctl ? setTimeout(function () { ctl.abort(); }, API_TIMEOUT) : null;
+    var done = function () { clearTimeout(limit); };
+    return fetch(u, ctl ? { cache: 'no-store', signal: ctl.signal } : { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        done();
+        if (!j.ok && j.error) throw new Error(j.error);
+        return j;
+      }, function (e) { done(); throw e; });
   }
+  var API_TIMEOUT = 30000;
 
   var SAVE_KEY = VIEW ? 'rr_view' : 'rr_screen';
   function save(d) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch (e) {} }
@@ -913,10 +922,14 @@
   window.rrScreen = { showReminder: showReminder, reminderText: reminderText, daySentences: function () { return daySentences(); },
     openTomorrow: openTomorrow, tomorrowSentences: function () { return tomorrowSentences('Tomorrow is '); } };
 
+  // Each check-in gets a number; an old one that answers late is ignored, so a restart
+  // can never leave two check-in loops running side by side
+  var pollSeq = 0, pollDone = Date.now();
   function poll() {
     clearTimeout(pollTimer);
-    var asked = Date.now();
+    var asked = Date.now(), seq = ++pollSeq;
     api({ a: 'screen' }).then(function (d) {
+      if (seq !== pollSeq) return;
       failures = 0; $('offline').hidden = true;
       if (VIEW) {
         seenInfo = { seen: d.seen || 0, age: d.seen ? Math.max(0, d.now - d.seen) : 0, fetchedAt: Date.now(), battery: d.battery || null };
@@ -926,13 +939,24 @@
       }
       save(d); apply(d, asked);
     }).catch(function () {
+      if (seq !== pollSeq) return;
       failures++;
       if (failures >= 3 && !VIEW) $('offline').hidden = false;
     }).then(function () {
+      if (seq !== pollSeq) return;
+      pollDone = Date.now();
       viewStatus();
       pollTimer = setTimeout(poll, callUi && callUi.phase !== 'ended' ? POLL_CALL : POLL_IDLE);
     });
   }
+  // Safety net: if no check-in has finished for 90 seconds, something is stuck, so start again
+  setInterval(function () {
+    if ((KEY || FKEY) && Date.now() - pollDone > 90000) {
+      console.warn('Check-ins stalled; starting again');
+      pollDone = Date.now();
+      poll();
+    }
+  }, 30000);
 
   // ----- Calls -----
   function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
@@ -1169,7 +1193,7 @@
   });
 
   // ----- Updates: when a newer copy of this page is published, reload into it at a quiet moment -----
-  var PAGE_VERSION = '2026-11-21.174018';            // publish_screen.py stamps this; a 'dev' copy never updates itself
+  var PAGE_VERSION = '2026-11-23.131143';            // publish_screen.py stamps this; a 'dev' copy never updates itself
   var UPDATE_CHECK = 5 * 60000;        // look for a newer copy every 5 minutes
   var newVersion = '';
   function updateTries(v) {
